@@ -3,11 +3,11 @@ import { ToolPage } from '../components/ToolPage'
 import { useScanPoll } from '../hooks/useScanPoll'
 
 interface Hop {
-  hop: number
+  ttl: number
   host?: string
-  ip?: string
+  address?: string
   rtt_ms?: number
-  loss?: number
+  timeout?: boolean
 }
 
 interface TracerouteResult {
@@ -62,22 +62,23 @@ export function Traceroute() {
                     </tr>
                   </thead>
                   <tbody>
-                    {hops.map((h, i) => {
-                      const lossColor = (h.loss ?? 0) > 50 ? 'var(--color-red)' : (h.loss ?? 0) > 0 ? 'var(--color-yellow)' : 'var(--color-green)'
-                      return (
+                    {hops.map((h, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                          <td className="px-4 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.hop}</td>
-                          <td className="px-4 py-2.5" style={{ color: 'var(--color-text-primary)' }}>{h.host ?? '*'}</td>
-                          <td className="px-4 py-2.5" style={{ color: 'var(--color-accent)' }}>{h.ip ?? '*'}</td>
+                          <td className="px-4 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl}</td>
                           <td className="px-4 py-2.5" style={{ color: 'var(--color-text-primary)' }}>
-                            {h.rtt_ms !== undefined ? h.rtt_ms.toFixed(2) : '*'}
+                            {h.timeout ? '*' : (h.host || h.address || '*')}
                           </td>
-                          <td className="px-4 py-2.5" style={{ color: lossColor }}>
-                            {h.loss !== undefined ? `${h.loss}%` : '-'}
+                          <td className="px-4 py-2.5" style={{ color: 'var(--color-accent)' }}>
+                            {h.timeout ? '*' : (h.address || '*')}
+                          </td>
+                          <td className="px-4 py-2.5" style={{ color: h.timeout ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)' }}>
+                            {h.timeout ? '*' : (h.rtt_ms ? h.rtt_ms.toFixed(2) : '*')}
+                          </td>
+                          <td className="px-4 py-2.5" style={{ color: h.timeout ? 'var(--color-red)' : 'var(--color-green)' }}>
+                            {h.timeout ? 'timeout' : '-'}
                           </td>
                         </tr>
-                      )
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>
