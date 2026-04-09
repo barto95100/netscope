@@ -52,6 +52,13 @@ func NewRouter(s *Server) *chi.Mux {
 
 		r.Get("/api/dashboard/stats", s.GetDashboardStats)
 		r.Post("/api/geolocate", s.HandleGeolocate)
+
+		r.Post("/api/netpaths", s.CreateNetPath)
+		r.Get("/api/netpaths", s.ListNetPaths)
+		r.Get("/api/netpaths/{id}", s.GetNetPath)
+		r.Delete("/api/netpaths/{id}", s.DeleteNetPath)
+		r.Get("/api/netpaths/{id}/traces", s.ListNetPathTraces)
+		r.Get("/api/netpaths/{id}/changes", s.GetNetPathRouteChanges)
 	})
 
 	return r

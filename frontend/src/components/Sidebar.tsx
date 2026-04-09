@@ -26,6 +26,7 @@ const navGroups: NavGroup[] = [
       { label: 'Traceroute / MTR', to: '/traceroute', icon: '⇢' },
       { label: 'DNS Lookup', to: '/dns', icon: '◈' },
       { label: 'Whois', to: '/whois', icon: '◇' },
+      { label: 'NetPath', to: '/netpath', icon: '⟿' },
     ],
   },
   {

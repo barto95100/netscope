@@ -14,6 +14,7 @@ import { SslAudit } from './pages/SslAudit'
 import { Traceroute } from './pages/Traceroute'
 import { VulnScanner } from './pages/VulnScanner'
 import { Whois } from './pages/Whois'
+import { NetPathPage } from './pages/NetPath'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route path="diagnostic" element={<Diagnostic />} />
           <Route path="port-scanner" element={<PortScanner />} />
           <Route path="traceroute" element={<Traceroute />} />
+          <Route path="netpath" element={<NetPathPage />} />
           <Route path="dns" element={<DnsLookup />} />
           <Route path="whois" element={<Whois />} />
           {/* Security */}

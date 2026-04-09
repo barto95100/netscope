@@ -73,6 +73,10 @@ func main() {
 	scheduler := monitor.NewScheduler(db)
 	go scheduler.Run(ctx)
 
+	// Start netpath scheduler
+	netpathScheduler := monitor.NewNetPathScheduler(db)
+	go netpathScheduler.Run(ctx)
+
 	// Block until shutdown signal
 	<-ctx.Done()
 	log.Println("worker: shutting down")
