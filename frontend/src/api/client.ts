@@ -182,4 +182,10 @@ export const api = {
   dashboard: {
     stats: () => request<DashboardStats>('/api/dashboard/stats'),
   },
+
+  geolocate: (ips: string[]) =>
+    request<Record<string, { ip: string; country: string; city: string; lat: number; lon: number; isp: string }>>(
+      '/api/geolocate',
+      { method: 'POST', body: JSON.stringify({ ips }) },
+    ),
 }

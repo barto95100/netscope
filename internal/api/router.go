@@ -51,6 +51,7 @@ func NewRouter(s *Server) *chi.Mux {
 		r.Put("/api/alerts/{id}", s.UpdateAlert)
 
 		r.Get("/api/dashboard/stats", s.GetDashboardStats)
+		r.Post("/api/geolocate", s.HandleGeolocate)
 	})
 
 	return r

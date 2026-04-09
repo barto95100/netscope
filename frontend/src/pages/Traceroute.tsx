@@ -1,5 +1,6 @@
 import { type FormEvent, useState, useRef, useCallback, useEffect } from 'react'
 import { api, type Scan } from '../api/client'
+import { PathMap } from '../components/PathMap'
 
 interface TracerouteHop {
   ttl: number
@@ -266,6 +267,13 @@ export function Traceroute() {
         </div>
       )}
 
+      {/* Path Map for traceroute */}
+      {traceHops.length > 0 && (
+        <div className="mt-4">
+          <PathMap hops={traceHops} target={target} />
+        </div>
+      )}
+
       {/* MTR live result */}
       {mtrHops.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
@@ -309,6 +317,16 @@ export function Traceroute() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Path Map for MTR */}
+      {mtrHops.length > 0 && !running && (
+        <div className="mt-4">
+          <PathMap
+            hops={mtrHops.map(h => ({ ttl: h.ttl, address: h.host !== '???' ? h.host : undefined, host: h.host, rtt_ms: h.avg_ms, timeout: h.host === '???' }))}
+            target={target}
+          />
         </div>
       )}
 
