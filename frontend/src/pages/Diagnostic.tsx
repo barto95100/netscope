@@ -84,33 +84,13 @@ export function Diagnostic() {
               </div>
             </div>
 
-            {/* Latency bar visualization */}
-            <div className="rounded-xl p-5" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
-              <div className="text-[10px] uppercase tracking-wider mb-4" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-                Latency Range
-              </div>
-              <div className="relative h-8 rounded-lg overflow-hidden" style={{ background: 'var(--color-bg-surface)' }}>
-                {(() => {
-                  const max = result.max_rtt_ms * 1.2 || 1
-                  const minPct = (result.min_rtt_ms / max) * 100
-                  const maxPct = (result.max_rtt_ms / max) * 100
-                  const avgPct = (result.avg_rtt_ms / max) * 100
-                  return (
-                    <>
-                      {/* Range bar */}
-                      <div className="absolute top-1/2 -translate-y-1/2 h-3 rounded-full"
-                        style={{ left: `${minPct}%`, width: `${maxPct - minPct}%`, background: 'rgba(14,165,233,0.2)' }} />
-                      {/* Avg marker */}
-                      <div className="absolute top-1/2 -translate-y-1/2 w-3 h-6 rounded-sm"
-                        style={{ left: `${avgPct}%`, transform: 'translate(-50%, -50%)', background: 'var(--color-accent)', boxShadow: '0 0 8px rgba(14,165,233,0.4)' }} />
-                    </>
-                  )
-                })()}
-              </div>
-              <div className="flex justify-between mt-2 text-[10px]" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>
-                <span>min {result.min_rtt_ms.toFixed(2)}ms</span>
-                <span style={{ color: 'var(--color-accent)' }}>avg {result.avg_rtt_ms.toFixed(2)}ms</span>
-                <span>max {result.max_rtt_ms.toFixed(2)}ms</span>
+            {/* Summary line */}
+            <div className="rounded-xl px-5 py-4 flex items-center gap-6" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+              <div className="text-[10px] uppercase tracking-wider shrink-0" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>Latency</div>
+              <div className="flex items-center gap-6 text-xs" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                <span style={{ color: 'var(--color-text-tertiary)' }}>min <span style={{ color: 'var(--color-green)' }}>{result.min_rtt_ms.toFixed(2)}ms</span></span>
+                <span style={{ color: 'var(--color-text-tertiary)' }}>avg <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>{result.avg_rtt_ms.toFixed(2)}ms</span></span>
+                <span style={{ color: 'var(--color-text-tertiary)' }}>max <span style={{ color: result.max_rtt_ms > 100 ? 'var(--color-red)' : 'var(--color-yellow)' }}>{result.max_rtt_ms.toFixed(2)}ms</span></span>
               </div>
             </div>
 
