@@ -319,8 +319,9 @@ export function Traceroute() {
             )}
             {mtrHops.length > 0 && (
               <PathMap
-                hops={mtrHops.map(h => ({ ttl: h.ttl, address: h.host !== '???' ? h.host : undefined, host: h.host, rtt_ms: h.avg_ms, timeout: h.host === '???' }))}
+                hops={mtrHops.map(h => ({ ttl: h.ttl, address: h.host !== '???' ? h.host : undefined, host: h.host, rtt_ms: h.avg_ms, timeout: h.host === '???', loss_percent: h.loss_percent }))}
                 target={target}
+                live
               />
             )}
           </div>
