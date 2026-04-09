@@ -57,6 +57,12 @@ func (s *Server) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(monitor)
 }
 
+// MonitorWithLatency extends Monitor with the last check latency.
+type MonitorWithLatency struct {
+	models.Monitor
+	LastLatencyMs *float32 `json:"last_latency_ms"`
+}
+
 // ListMonitors handles GET /api/monitors.
 func (s *Server) ListMonitors(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -87,12 +93,18 @@ func (s *Server) ListMonitors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if monitors == nil {
-		monitors = []models.Monitor{}
+	// Enrich with last latency
+	result := make([]MonitorWithLatency, len(monitors))
+	for i, m := range monitors {
+		result[i] = MonitorWithLatency{Monitor: m}
+		results, err := models.ListMonitorResults(r.Context(), s.DB, m.ID, 1, 0)
+		if err == nil && len(results) > 0 {
+			result[i].LastLatencyMs = results[0].LatencyMs
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(monitors)
+	json.NewEncoder(w).Encode(result)
 }
 
 // UpdateMonitor handles PUT /api/monitors/{id}.

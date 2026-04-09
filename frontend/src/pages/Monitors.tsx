@@ -139,6 +139,13 @@ export function Monitors() {
                 </div>
                 <span className="text-xs truncate block" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>{m.target}</span>
               </div>
+              {m.last_latency_ms != null && (
+                <span className="text-xs px-2 py-1 rounded" style={{
+                  fontFamily: 'var(--font-family-mono)',
+                  background: m.last_latency_ms < 100 ? 'rgba(16,185,129,0.08)' : m.last_latency_ms < 500 ? 'rgba(234,179,8,0.08)' : 'rgba(239,68,68,0.08)',
+                  color: m.last_latency_ms < 100 ? 'var(--color-green)' : m.last_latency_ms < 500 ? 'var(--color-yellow)' : 'var(--color-red)',
+                }}>{m.last_latency_ms.toFixed(0)}ms</span>
+              )}
               <span className="text-xs px-2 py-1 rounded" style={{
                 fontFamily: 'var(--font-family-mono)',
                 background: 'rgba(14,165,233,0.08)',

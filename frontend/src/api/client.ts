@@ -23,6 +23,7 @@ export interface Monitor {
   enabled: boolean
   last_status: string
   last_checked_at: string | null
+  last_latency_ms: number | null
   created_at: string
 }
 
