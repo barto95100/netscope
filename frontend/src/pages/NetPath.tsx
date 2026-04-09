@@ -420,25 +420,25 @@ export function NetPathPage() {
                         const isLast = i === mainNodes.length - 1
                         const color = isFirst ? '#10b981' : isLast ? '#ef4444' : rttColor(hop.rtt_ms)
                         const active = node.isCurrent
-                        const r = isFirst || isLast ? 10 : 7
+                        const r = isFirst || isLast ? 14 : 11
 
                         return (
                           <g key={`mn-${i}`} className="np-nd" style={{ cursor: 'pointer' }}>
-                            {active && <circle cx={x} cy={mainY} r={16} fill="none" stroke={color} strokeWidth={0.5} strokeOpacity={0.2}>
-                              <animate attributeName="r" values="14;22;14" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
+                            {active && <circle cx={x} cy={mainY} r={20} fill="none" stroke={color} strokeWidth={0.5} strokeOpacity={0.2}>
+                              <animate attributeName="r" values="18;28;18" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
                               <animate attributeName="stroke-opacity" values="0.2;0;0.2" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
                             </circle>}
                             <circle cx={x} cy={mainY} r={r + 3} fill={color} fillOpacity={active ? 0.06 : 0.02} stroke={color} strokeWidth={0.5} strokeOpacity={active ? 0.2 : 0.1} />
                             <circle cx={x} cy={mainY} r={r} fill="#0a0e16" stroke={color} strokeWidth={active ? 2 : 1} strokeOpacity={active ? 1 : 0.3} filter={active ? 'url(#ng)' : undefined} />
                             <circle cx={x} cy={mainY} r={r - 3} fill={color} fillOpacity={active ? 0.3 : 0.1} />
-                            {hop.rtt_ms > 0 && r >= 7 && active && (
-                              <text x={x} y={mainY + 3} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="bold">
+                            {hop.rtt_ms > 0 && active && (
+                              <text x={x} y={mainY + 4} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="bold">
                                 {hop.rtt_ms < 10 ? hop.rtt_ms.toFixed(1) : Math.round(hop.rtt_ms)}
                               </text>
                             )}
                             {isFirst && <text x={x} y={mainY - 22} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#10b981" filter="url(#ng)" letterSpacing="2">SRC</text>}
                             {isLast && <text x={x} y={mainY - 22} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" filter="url(#ng)" letterSpacing="2">DST</text>}
-                            <text x={x} y={mainY + r + 14} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill={color} opacity={active ? 0.8 : 0.3}>
+                            <text x={x} y={mainY + r + 16} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill={color} opacity={active ? 0.8 : 0.3}>
                               {hop.address || '*'}
                             </text>
 

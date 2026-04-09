@@ -148,6 +148,13 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		}
 		return marshalResult(res)
 
+	case "vulnscan":
+		res, err := tools.VulnScan(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+		return marshalResult(res)
+
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", job.Type)
 	}
