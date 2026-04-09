@@ -337,8 +337,8 @@ export function NetPathPage() {
                 }
 
                 return (
-                  <div className="p-6 pb-4" style={{ minWidth: width + 80 }}>
-                    <svg width={width + 80} height={svgH} style={{ overflow: 'visible' }}>
+                  <div className="p-6 pb-4 flex justify-center">
+                    <svg width={width + 80} height={svgH} style={{ overflow: 'visible', flexShrink: 0 }}>
                       <defs>
                         <filter id="ng"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                         <filter id="ng2"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
