@@ -39,8 +39,8 @@ export function Diagnostic() {
 
   return (
     <ToolPage
-      title="Network Diagnostic"
-      description="Send ICMP ping requests to test host reachability and latency"
+      title="Ping"
+      description="Test host reachability and measure latency with ICMP ping"
       scan={scan}
       polling={polling}
       submitting={submitting}

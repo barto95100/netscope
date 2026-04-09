@@ -21,7 +21,7 @@ const navGroups: NavGroup[] = [
   {
     title: 'Network',
     items: [
-      { label: 'Diagnostic', to: '/diagnostic', icon: '◎' },
+      { label: 'Ping', to: '/diagnostic', icon: '◎' },
       { label: 'Port Scanner', to: '/port-scanner', icon: '⊞' },
       { label: 'Traceroute / MTR', to: '/traceroute', icon: '⇢' },
       { label: 'DNS Lookup', to: '/dns', icon: '◈' },
