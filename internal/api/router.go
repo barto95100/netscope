@@ -1,0 +1,58 @@
+package api
+
+import (
+	"github.com/barto/netscope/internal/database"
+	"github.com/barto/netscope/internal/queue"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+)
+
+// Server holds all dependencies for API handlers.
+type Server struct {
+	DB        *database.DB
+	Publisher *queue.Publisher
+	Subscriber *queue.Subscriber
+	WSHub     *WSHub
+}
+
+// NewRouter creates and configures a chi router with all API routes.
+func NewRouter(s *Server) *chi.Mux {
+	r := chi.NewRouter()
+
+	// Global middleware
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RealIP)
+	r.Use(LoggingMiddleware)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"http://localhost:*", "https://localhost:*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		MaxAge:         300,
+	}))
+
+	// Scan routes
+	r.Post("/api/scans", s.CreateScan)
+	r.Get("/api/scans", s.ListScans)
+	r.Get("/api/scans/{id}", s.GetScan)
+	r.Delete("/api/scans/{id}", s.CancelScan)
+
+	// Monitor routes
+	r.Post("/api/monitors", s.CreateMonitor)
+	r.Get("/api/monitors", s.ListMonitors)
+	r.Put("/api/monitors/{id}", s.UpdateMonitor)
+	r.Delete("/api/monitors/{id}", s.DeleteMonitor)
+	r.Get("/api/monitors/{id}/results", s.GetMonitorResults)
+
+	// Alert routes
+	r.Get("/api/alerts", s.ListAlerts)
+	r.Put("/api/alerts/{id}", s.UpdateAlert)
+
+	// Dashboard
+	r.Get("/api/dashboard/stats", s.GetDashboardStats)
+
+	// WebSocket
+	r.Get("/api/ws/scans/{id}", s.HandleWebSocket)
+
+	return r
+}
