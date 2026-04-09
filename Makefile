@@ -1,4 +1,4 @@
-.PHONY: deps deps-down api worker migrate-up migrate-down test
+.PHONY: deps deps-down api worker migrate-up migrate-down test frontend-install frontend-build frontend-dev
 
 deps:
 	docker compose -f docker-compose.deps.yml up -d
@@ -22,3 +22,12 @@ migrate-down:
 
 test:
 	go test ./... -v -count=1
+
+frontend-install:
+	cd frontend && npm install
+
+frontend-build:
+	cd frontend && npm run build
+
+frontend-dev:
+	cd frontend && npm run dev
