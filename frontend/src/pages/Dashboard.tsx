@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Scan, type Alert } from '../api/client'
 import { AlertRow } from '../components/AlertRow'
@@ -20,9 +20,15 @@ export function Dashboard() {
     refreshPanels()
   }, [refreshPanels, stats])
 
+  const [spinning, setSpinning] = useState(false)
+  const spinTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const refresh = useCallback(() => {
     refreshStats()
     refreshPanels()
+    setSpinning(true)
+    if (spinTimeout.current) clearTimeout(spinTimeout.current)
+    spinTimeout.current = setTimeout(() => setSpinning(false), 800)
   }, [refreshStats, refreshPanels])
 
   return (
@@ -41,15 +47,22 @@ export function Dashboard() {
         </div>
         <button
           onClick={refresh}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
           style={{
             background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-text-secondary)',
+            border: `1px solid ${spinning ? 'var(--color-accent)' : 'var(--color-border)'}`,
+            color: spinning ? 'var(--color-accent)' : 'var(--color-text-secondary)',
           }}
         >
-          ↻ Refresh
+          <span style={{
+            display: 'inline-block',
+            transition: 'transform 0.3s',
+            transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)',
+            animation: spinning ? 'spin 0.6s linear' : 'none',
+          }}>↻</span>
+          {spinning ? 'Refreshing...' : 'Refresh'}
         </button>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
 
       {loading && !stats ? (
