@@ -117,30 +117,94 @@ export function NetPathPage() {
   const compareTrace = compareIdx !== null ? traces[compareIdx] : null
   const selectedPath = paths.find(p => p.id === selected)
 
-  // Find divergences between current and compare traces
-  function findDivergences(current: TraceHop[], compare: TraceHop[]): Map<number, TraceHop> {
-    const divs = new Map<number, TraceHop>()
-    const maxLen = Math.max(current.length, compare.length)
-    for (let i = 0; i < maxLen; i++) {
-      const c = current[i]
-      const p = compare[i]
-      if (!c || !p) continue
-      if (c.address !== p.address) {
-        divs.set(i, p)
-      }
-    }
-    return divs
-  }
-
-  const divergences = currentTrace && compareTrace
-    ? findDivergences(currentTrace.hops, compareTrace.hops)
-    : new Map<number, TraceHop>()
-
   function rttColor(ms: number) {
     if (ms < 30) return '#10b981'
     if (ms < 100) return '#eab308'
     return '#ef4444'
   }
+
+  // Build unified metro topology from current + compare traces
+  type MetroNode = { addr: string; hop?: TraceHop; oldHop?: TraceHop; isCurrent: boolean; isOld: boolean; row: 'main' | 'branch' }
+  type MetroSegment = { from: number; to: number; row: 'main' | 'branch'; active: boolean }
+
+  function buildMetro(current: TraceHop[], compare?: TraceHop[]) {
+    const nodes: MetroNode[] = []
+    const segments: MetroSegment[] = []
+
+    if (!compare) {
+      // Simple case: no comparison
+      current.forEach(h => {
+        nodes.push({ addr: h.address, hop: h, isCurrent: true, isOld: false, row: 'main' })
+      })
+      for (let i = 1; i < nodes.length; i++) segments.push({ from: i - 1, to: i, row: 'main', active: true })
+      return { nodes, segments }
+    }
+
+    // Find common prefix
+    let prefixEnd = 0
+    while (prefixEnd < current.length && prefixEnd < compare.length && current[prefixEnd].address === compare[prefixEnd].address) {
+      prefixEnd++
+    }
+
+    // Find common suffix (from the end)
+    let suffixStart = 0
+    const cLen = current.length
+    const pLen = compare.length
+    while (suffixStart < cLen && suffixStart < pLen) {
+      const ci = cLen - 1 - suffixStart
+      const pi = pLen - 1 - suffixStart
+      if (ci <= prefixEnd || pi <= prefixEnd) break
+      if (current[ci].address !== compare[pi].address) break
+      suffixStart++
+    }
+    const currentSuffixIdx = cLen - suffixStart
+    const compareSuffixIdx = pLen - suffixStart
+
+    // Common prefix nodes
+    for (let i = 0; i < prefixEnd; i++) {
+      nodes.push({ addr: current[i].address, hop: current[i], oldHop: compare[i], isCurrent: true, isOld: true, row: 'main' })
+    }
+
+    // Divergent section - current route stays on main
+    const branchStartIdx = nodes.length > 0 ? nodes.length - 1 : 0
+    for (let i = prefixEnd; i < currentSuffixIdx; i++) {
+      nodes.push({ addr: current[i].address, hop: current[i], isCurrent: true, isOld: false, row: 'main' })
+    }
+    const branchRejoinsIdx = nodes.length // where the branch will rejoin
+
+    // Divergent section - old route on branch
+    const branchNodes: MetroNode[] = []
+    for (let i = prefixEnd; i < compareSuffixIdx; i++) {
+      branchNodes.push({ addr: compare[i].address, oldHop: compare[i], isCurrent: false, isOld: true, row: 'branch' })
+    }
+
+    // Common suffix nodes
+    for (let i = currentSuffixIdx; i < cLen; i++) {
+      const pi = compareSuffixIdx + (i - currentSuffixIdx)
+      nodes.push({ addr: current[i].address, hop: current[i], oldHop: compare[pi], isCurrent: true, isOld: true, row: 'main' })
+    }
+
+    // Build main line segments
+    for (let i = 1; i < nodes.length; i++) segments.push({ from: i - 1, to: i, row: 'main', active: true })
+
+    // Insert branch nodes and segments
+    const branchOffset = nodes.length
+    nodes.push(...branchNodes)
+    // Branch segments
+    for (let i = 1; i < branchNodes.length; i++) segments.push({ from: branchOffset + i - 1, to: branchOffset + i, row: 'branch', active: false })
+    // Connect branch to main: start
+    if (branchNodes.length > 0) {
+      segments.push({ from: branchStartIdx, to: branchOffset, row: 'branch', active: false })
+      // Connect branch end back to main
+      if (branchRejoinsIdx < nodes.length - branchNodes.length) {
+        segments.push({ from: branchOffset + branchNodes.length - 1, to: branchRejoinsIdx, row: 'branch', active: false })
+      }
+    }
+
+    return { nodes, segments, branchOffset, branchCount: branchNodes.length }
+  }
+
+  const metro = currentTrace ? buildMetro(currentTrace.hops, compareTrace?.hops) : null
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto">
@@ -244,200 +308,182 @@ export function NetPathPage() {
             </div>
 
             {/* Metro map - SOC style */}
+            {metro && (
             <div className="overflow-x-auto" style={{
               background: 'linear-gradient(180deg, #06080d 0%, #0a0e16 100%)',
-              backgroundImage: `
-                linear-gradient(rgba(14,165,233,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(14,165,233,0.03) 1px, transparent 1px)
-              `,
+              backgroundImage: `linear-gradient(rgba(14,165,233,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(14,165,233,0.03) 1px, transparent 1px)`,
               backgroundSize: '40px 40px',
             }}>
-              <div className="p-8 pb-6" style={{ minWidth: Math.max(currentTrace.hops.length * 110, 700) }}>
-                <svg width="100%" height={compareTrace ? 240 : 160} style={{ overflow: 'visible' }}>
-                  <defs>
-                    <filter id="ng"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-                    <filter id="ng2"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-                    <style>{`
-                      @keyframes dflow { to { stroke-dashoffset: -24; } }
-                      .np-tooltip { pointer-events: none; opacity: 0; transition: opacity 0.2s; }
-                      .np-hop:hover .np-tooltip { opacity: 1; }
-                    `}</style>
-                  </defs>
+              {(() => {
+                const mainNodes = metro.nodes.filter(n => n.row === 'main')
+                const branchNodes = metro.nodes.filter(n => n.row === 'branch')
+                const totalStations = mainNodes.length
+                const spacing = 80
+                const width = Math.max(totalStations * spacing, 600)
+                const mainY = 70
+                const branchY = 150
+                const hasBranch = branchNodes.length > 0
+                const svgH = hasBranch ? 210 : 140
 
-                  {/* === COMPARE (old) route rendered FIRST (behind) === */}
-                  {compareTrace && (() => {
-                    const maxLen = Math.max(currentTrace.hops.length, compareTrace.hops.length)
-                    const oldY = 160
-                    // Find divergence ranges
-                    const divStart: number[] = []
-                    const divEnd: number[] = []
-                    let inDiv = false
-                    for (let i = 0; i < maxLen; i++) {
-                      const cAddr = currentTrace.hops[i]?.address
-                      const pAddr = compareTrace.hops[i]?.address
-                      const isDiff = cAddr !== pAddr
-                      if (isDiff && !inDiv) { divStart.push(i); inDiv = true }
-                      if (!isDiff && inDiv) { divEnd.push(i); inDiv = false }
-                    }
-                    if (inDiv) divEnd.push(maxLen - 1)
+                // Position map: node index -> x coordinate
+                const nodeX = (idx: number, row: 'main' | 'branch') => {
+                  if (row === 'main') return 40 + idx * spacing
+                  // Branch nodes: position between branch start and rejoin
+                  const bStart = (metro.branchOffset !== undefined && mainNodes.length > 0)
+                    ? Math.max(0, mainNodes.findIndex(n => !n.isOld && n.isCurrent) - 1) : 0
+                  const bStartX = 40 + Math.max(0, bStart) * spacing
+                  const bSpacing = branchNodes.length > 1 ? (spacing * (mainNodes.filter(n => n.isCurrent && !n.isOld).length + 1)) / (branchNodes.length + 1) : spacing
+                  return bStartX + (idx + 1) * bSpacing
+                }
 
-                    return divStart.map((start, si) => {
-                      const end = divEnd[si] ?? maxLen - 1
-                      const items = []
-                      // Branch down from main line
-                      const branchX = ((start > 0 ? start - 1 : 0) / (maxLen - 1)) * 100
-                      const startX = (start / (maxLen - 1)) * 100
-                      items.push(
-                        <path key={`br-down-${si}`}
-                          d={`M ${branchX}% 80 C ${branchX}% 120 ${startX}% 120 ${startX}% ${oldY}`}
-                          fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.3} strokeDasharray="5 5" />
-                      )
-                      // Old route segments
-                      for (let i = start; i <= end; i++) {
-                        const hop = compareTrace.hops[i]
-                        if (!hop) continue
-                        const x = (i / (maxLen - 1)) * 100
-                        // Line between old hops
-                        if (i > start) {
-                          const px = ((i - 1) / (maxLen - 1)) * 100
-                          items.push(
-                            <line key={`ol-${i}`} x1={`${px}%`} y1={oldY} x2={`${x}%`} y2={oldY}
-                              stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.25} strokeDasharray="4 4" strokeLinecap="round" />
-                          )
+                return (
+                  <div className="p-6 pb-4" style={{ minWidth: width + 80 }}>
+                    <svg width={width + 80} height={svgH} style={{ overflow: 'visible' }}>
+                      <defs>
+                        <filter id="ng"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                        <filter id="ng2"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                        <style>{`
+                          @keyframes dflow { to { stroke-dashoffset: -24; } }
+                          .np-tip { pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+                          .np-nd:hover .np-tip { opacity: 1; }
+                        `}</style>
+                      </defs>
+
+                      {/* Main line segments */}
+                      {mainNodes.map((_, i) => {
+                        if (i === 0) return null
+                        const x1 = nodeX(i - 1, 'main')
+                        const x2 = nodeX(i, 'main')
+                        const hop = mainNodes[i].hop || mainNodes[i].oldHop
+                        const color = hop ? rttColor(hop.rtt_ms) : '#0ea5e9'
+                        const active = mainNodes[i].isCurrent
+                        return (
+                          <g key={`ml-${i}`}>
+                            <line x1={x1} y1={mainY} x2={x2} y2={mainY} stroke={color} strokeWidth={6} strokeOpacity={active ? 0.06 : 0.02} strokeLinecap="round" />
+                            <line x1={x1} y1={mainY} x2={x2} y2={mainY} stroke={color} strokeWidth={2} strokeOpacity={active ? 0.7 : 0.15} strokeLinecap="round" filter={active ? 'url(#ng)' : undefined} />
+                            {active && <line x1={x1} y1={mainY} x2={x2} y2={mainY} stroke={color} strokeWidth={2} strokeOpacity={0.4} strokeDasharray="2 22" strokeLinecap="round" style={{ animation: 'dflow 1.5s linear infinite' }} />}
+                          </g>
+                        )
+                      })}
+
+                      {/* Branch line segments */}
+                      {branchNodes.map((_, i) => {
+                        if (i === 0) return null
+                        const x1 = nodeX(i - 1, 'branch')
+                        const x2 = nodeX(i, 'branch')
+                        return (
+                          <line key={`bl-${i}`} x1={x1} y1={branchY} x2={x2} y2={branchY}
+                            stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.2} strokeDasharray="4 4" strokeLinecap="round" />
+                        )
+                      })}
+
+                      {/* Branch connections: fork down and rejoin up */}
+                      {hasBranch && (() => {
+                        // Find fork point (last common node before divergence)
+                        let forkIdx = 0
+                        for (let i = 0; i < mainNodes.length; i++) {
+                          if (mainNodes[i].isOld && mainNodes[i].isCurrent) forkIdx = i
+                          else break
                         }
-                        // Old node
-                        items.push(
-                          <g key={`on-${i}`}>
-                            <circle cx={`${x}%`} cy={oldY} r={6} fill="#0a0e16" stroke="#7a8ba8" strokeWidth={1} strokeOpacity={0.4} />
-                            <circle cx={`${x}%`} cy={oldY} r={2} fill="#7a8ba8" fillOpacity={0.4} />
-                            <text x={`${x}%`} y={oldY + 18} textAnchor="middle" fontSize={8}
-                              fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.4}>
-                              {hop.address || '???'}
+                        // Find rejoin point
+                        let rejoinIdx = mainNodes.length - 1
+                        for (let i = mainNodes.length - 1; i >= 0; i--) {
+                          if (mainNodes[i].isOld && mainNodes[i].isCurrent) { rejoinIdx = i; break }
+                        }
+                        const forkX = nodeX(forkIdx, 'main')
+                        const rejoinX = nodeX(rejoinIdx, 'main')
+                        const branchStartX = nodeX(0, 'branch')
+                        const branchEndX = nodeX(branchNodes.length - 1, 'branch')
+                        return (
+                          <g>
+                            {/* Fork curve */}
+                            <path d={`M ${forkX} ${mainY} C ${forkX} ${mainY + 40} ${branchStartX} ${branchY - 40} ${branchStartX} ${branchY}`}
+                              fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.2} strokeDasharray="5 5" />
+                            {/* Rejoin curve */}
+                            <path d={`M ${branchEndX} ${branchY} C ${branchEndX} ${branchY - 40} ${rejoinX} ${mainY + 40} ${rejoinX} ${mainY}`}
+                              fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.2} strokeDasharray="5 5" />
+                            {/* Label */}
+                            <text x={(branchStartX + branchEndX) / 2} y={branchY + 30} textAnchor="middle" fontSize={8}
+                              fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.4} letterSpacing="1">
+                              PREVIOUS ROUTE
                             </text>
                           </g>
                         )
-                      }
-                      // Branch back up
-                      const endX = (end / (maxLen - 1)) * 100
-                      const rejoinX = ((end < maxLen - 1 ? end + 1 : end) / (maxLen - 1)) * 100
-                      items.push(
-                        <path key={`br-up-${si}`}
-                          d={`M ${endX}% ${oldY} C ${endX}% 120 ${rejoinX}% 120 ${rejoinX}% 80`}
-                          fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.3} strokeDasharray="5 5" />
-                      )
-                      // Label
-                      items.push(
-                        <text key={`lbl-${si}`} x={`${(parseFloat(String(startX)) + parseFloat(String(endX))) / 2}%`} y={oldY + 32}
-                          textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" opacity={0.4}
-                          letterSpacing="1">PREVIOUS ROUTE</text>
-                      )
-                      return <g key={`divg-${si}`}>{items}</g>
-                    })
-                  })()}
+                      })()}
 
-                  {/* === CURRENT route lines === */}
-                  {currentTrace.hops.map((hop, i) => {
-                    if (i === 0) return null
-                    const x1 = ((i - 1) / (currentTrace.hops.length - 1)) * 100
-                    const x2 = (i / (currentTrace.hops.length - 1)) * 100
-                    const color = rttColor(hop.rtt_ms)
-                    return (
-                      <g key={`cl-${i}`}>
-                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={8} strokeOpacity={0.05} strokeLinecap="round" />
-                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={3} strokeOpacity={0.15} strokeLinecap="round" />
-                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={2} strokeOpacity={0.7} strokeLinecap="round" filter="url(#ng)" />
-                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={2} strokeOpacity={0.4} strokeDasharray="2 22" strokeLinecap="round"
-                          style={{ animation: 'dflow 1.5s linear infinite' }} />
-                      </g>
-                    )
-                  })}
+                      {/* Main nodes */}
+                      {mainNodes.map((node, i) => {
+                        const x = nodeX(i, 'main')
+                        const hop = node.hop || node.oldHop
+                        if (!hop) return null
+                        const isFirst = i === 0
+                        const isLast = i === mainNodes.length - 1
+                        const color = isFirst ? '#10b981' : isLast ? '#ef4444' : rttColor(hop.rtt_ms)
+                        const active = node.isCurrent
+                        const r = isFirst || isLast ? 10 : 7
 
-                  {/* === CURRENT route nodes === */}
-                  {currentTrace.hops.map((hop, i) => {
-                    const x = (i / (currentTrace.hops.length - 1)) * 100
-                    const isFirst = i === 0
-                    const isLast = i === currentTrace.hops.length - 1
-                    const hasDivergence = divergences.has(i)
-                    const color = isFirst ? '#10b981' : isLast ? '#ef4444' : rttColor(hop.rtt_ms)
-                    const r = isFirst || isLast ? 10 : 7
-
-                    return (
-                      <g key={`cn-${i}`} className="np-hop" style={{ cursor: 'pointer' }}>
-                        {/* Scan ring */}
-                        <circle cx={`${x}%`} cy={80} r={14} fill="none" stroke={color} strokeWidth={0.5} strokeOpacity={0.2}>
-                          <animate attributeName="r" values="12;22;12" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
-                          <animate attributeName="stroke-opacity" values="0.2;0;0.2" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
-                        </circle>
-                        {/* Outer glow ring */}
-                        <circle cx={`${x}%`} cy={80} r={r + 4} fill={color} fillOpacity={0.06} stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />
-                        {/* Main circle */}
-                        <circle cx={`${x}%`} cy={80} r={r} fill="#0a0e16" stroke={color} strokeWidth={2} filter="url(#ng)" />
-                        {/* Center glow */}
-                        <circle cx={`${x}%`} cy={80} r={r - 3} fill={color} fillOpacity={0.3} filter="url(#ng2)" />
-                        {/* RTT inside node */}
-                        {hop.rtt_ms > 0 && r >= 7 && (
-                          <text x={`${x}%`} y={84} textAnchor="middle" fontSize={7}
-                            fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="bold">
-                            {hop.rtt_ms < 10 ? hop.rtt_ms.toFixed(1) : Math.round(hop.rtt_ms)}
-                          </text>
-                        )}
-                        {/* Divergence warning ring */}
-                        {hasDivergence && (
-                          <circle cx={`${x}%`} cy={80} r={r + 8} fill="none" stroke="#eab308" strokeWidth={1} strokeDasharray="3 3">
-                            <animate attributeName="r" values={`${r + 6};${r + 14};${r + 6}`} dur="1.5s" repeatCount="indefinite" />
-                            <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite" />
-                          </circle>
-                        )}
-                        {/* Source/Target labels */}
-                        {isFirst && <text x={`${x}%`} y={48} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill="#10b981" filter="url(#ng)" letterSpacing="2">SOURCE</text>}
-                        {isLast && <text x={`${x}%`} y={48} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" filter="url(#ng)" letterSpacing="2">TARGET</text>}
-                        {/* IP below node */}
-                        <text x={`${x}%`} y={102} textAnchor="middle" fontSize={8}
-                          fontFamily="'IBM Plex Mono',monospace" fill={color} opacity={0.8}>
-                          {hop.address || '*'}
-                        </text>
-                        {/* Hostname */}
-                        {hop.host && hop.host !== hop.address && (
-                          <text x={`${x}%`} y={113} textAnchor="middle" fontSize={7}
-                            fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.5}>
-                            {hop.host.length > 18 ? hop.host.slice(0, 18) + '…' : hop.host}
-                          </text>
-                        )}
-
-                        {/* Hover tooltip */}
-                        <g className="np-tooltip">
-                          <rect x={`${x}%`} y={-5} width={160} height={75} rx={8}
-                            transform={`translate(-80, 0)`}
-                            fill="#0b0f18" stroke={`${color}40`} strokeWidth={1}
-                            style={{ filter: `drop-shadow(0 0 12px ${color}20)` }} />
-                          <text x={`${x}%`} y={12} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="600">
-                            {isFirst ? 'Source' : isLast ? 'Destination' : `Hop ${i + 1}`}
-                          </text>
-                          <text x={`${x}%`} y={25} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#0ea5e9">
-                            {hop.address || '*'}
-                          </text>
-                          {hop.rtt_ms > 0 && (
-                            <text x={`${x}%`} y={38} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={rttColor(hop.rtt_ms)} fontWeight="bold">
-                              {hop.rtt_ms.toFixed(2)} ms
+                        return (
+                          <g key={`mn-${i}`} className="np-nd" style={{ cursor: 'pointer' }}>
+                            {active && <circle cx={x} cy={mainY} r={16} fill="none" stroke={color} strokeWidth={0.5} strokeOpacity={0.2}>
+                              <animate attributeName="r" values="14;22;14" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
+                              <animate attributeName="stroke-opacity" values="0.2;0;0.2" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
+                            </circle>}
+                            <circle cx={x} cy={mainY} r={r + 3} fill={color} fillOpacity={active ? 0.06 : 0.02} stroke={color} strokeWidth={0.5} strokeOpacity={active ? 0.2 : 0.1} />
+                            <circle cx={x} cy={mainY} r={r} fill="#0a0e16" stroke={color} strokeWidth={active ? 2 : 1} strokeOpacity={active ? 1 : 0.3} filter={active ? 'url(#ng)' : undefined} />
+                            <circle cx={x} cy={mainY} r={r - 3} fill={color} fillOpacity={active ? 0.3 : 0.1} />
+                            {hop.rtt_ms > 0 && r >= 7 && active && (
+                              <text x={x} y={mainY + 3} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="bold">
+                                {hop.rtt_ms < 10 ? hop.rtt_ms.toFixed(1) : Math.round(hop.rtt_ms)}
+                              </text>
+                            )}
+                            {isFirst && <text x={x} y={mainY - 22} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#10b981" filter="url(#ng)" letterSpacing="2">SRC</text>}
+                            {isLast && <text x={x} y={mainY - 22} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" filter="url(#ng)" letterSpacing="2">DST</text>}
+                            <text x={x} y={mainY + r + 14} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill={color} opacity={active ? 0.8 : 0.3}>
+                              {hop.address || '*'}
                             </text>
-                          )}
-                          {hop.city && (
-                            <text x={`${x}%`} y={50} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">
-                              {hop.city}{hop.country ? `, ${hop.country}` : ''}
+
+                            {/* Tooltip on hover */}
+                            <g className="np-tip">
+                              <rect x={x - 85} y={mainY - 80} width={170} height={65} rx={8}
+                                fill="#0b0f18" stroke={`${color}40`} strokeWidth={1} style={{ filter: `drop-shadow(0 0 10px ${color}20)` }} />
+                              <text x={x} y={mainY - 62} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="600">
+                                {isFirst ? 'Source' : isLast ? 'Destination' : `Hop ${hop.ttl + 1}`}
+                              </text>
+                              <text x={x} y={mainY - 49} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#0ea5e9">{hop.address}</text>
+                              {hop.rtt_ms > 0 && <text x={x} y={mainY - 36} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={rttColor(hop.rtt_ms)} fontWeight="bold">{hop.rtt_ms.toFixed(2)} ms</text>}
+                              {hop.city && <text x={x} y={mainY - 23} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">{hop.city}{hop.country ? `, ${hop.country}` : ''} {hop.isp ? `· ${hop.isp.slice(0, 20)}` : ''}</text>}
+                            </g>
+                          </g>
+                        )
+                      })}
+
+                      {/* Branch nodes (old route) */}
+                      {branchNodes.map((node, i) => {
+                        const x = nodeX(i, 'branch')
+                        const hop = node.oldHop
+                        if (!hop) return null
+                        return (
+                          <g key={`bn-${i}`} className="np-nd" style={{ cursor: 'pointer' }}>
+                            <circle cx={x} cy={branchY} r={6} fill="#0a0e16" stroke="#7a8ba8" strokeWidth={1} strokeOpacity={0.3} />
+                            <circle cx={x} cy={branchY} r={2} fill="#7a8ba8" fillOpacity={0.3} />
+                            <text x={x} y={branchY + 16} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.4}>
+                              {hop.address || '???'}
                             </text>
-                          )}
-                          {hop.isp && (
-                            <text x={`${x}%`} y={62} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill="#4a5568">
-                              {hop.isp.length > 25 ? hop.isp.slice(0, 25) + '…' : hop.isp}
-                            </text>
-                          )}
-                        </g>
-                      </g>
-                    )
-                  })}
-                </svg>
-              </div>
+                            <g className="np-tip">
+                              <rect x={x - 80} y={branchY - 50} width={160} height={40} rx={6}
+                                fill="#0b0f18" stroke="#7a8ba840" strokeWidth={1} />
+                              <text x={x} y={branchY - 34} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">Old: {hop.address}</text>
+                              {hop.rtt_ms > 0 && <text x={x} y={branchY - 20} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">{hop.rtt_ms.toFixed(2)} ms</text>}
+                            </g>
+                          </g>
+                        )
+                      })}
+                    </svg>
+                  </div>
+                )
+              })()}
             </div>
+            )}
           </div>
 
           {/* Timeline + Route changes */}
