@@ -9,11 +9,16 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
+    port: 3000,
     proxy: {
-      '/api': {
+      '/api/ws': {
         target: 'http://localhost:8080',
         changeOrigin: true,
         ws: true,
+      },
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
       },
     },
   },
