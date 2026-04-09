@@ -1,18 +1,21 @@
 package tools
 
 import (
+	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
 // MTRHop holds per-hop statistics from an MTR run.
 type MTRHop struct {
 	Host   string  `json:"host"`
-	Loss   float64 `json:"loss_pct"`
+	Loss   float64 `json:"loss_percent"`
 	Sent   int     `json:"sent"`
 	Recv   int     `json:"recv"`
 	Best   float64 `json:"best_ms"`
@@ -27,29 +30,10 @@ type MTRResult struct {
 	Hops   []MTRHop `json:"hops"`
 }
 
-// mtrJSON mirrors the JSON output structure of `mtr --json --report`.
-type mtrJSON struct {
-	Report mtrReport `json:"report"`
-}
+// mtr output line: "  1.|-- 192.168.1.1    0.0%     10    0.4   0.5   0.3   0.7   0.1"
+var mtrLineRegex = regexp.MustCompile(`^\s*\d+\.\|--\s+(.+)$`)
 
-type mtrReport struct {
-	Hubs []mtrHub `json:"hubs"`
-}
-
-type mtrHub struct {
-	Count int     `json:"count"`
-	Host  string  `json:"host"`
-	Loss  float64 `json:"Loss%"`
-	Snt   int     `json:"Snt"`
-	Last  float64 `json:"Last"`
-	Avg   float64 `json:"Avg"`
-	Best  float64 `json:"Best"`
-	Wrst  float64 `json:"Wrst"`
-	StDev float64 `json:"StDev"`
-}
-
-// MTR runs `mtr --json --report` against the target and returns structured results.
-// count is the number of pings per hop; values <=0 default to 10.
+// MTR runs `mtr --report` and parses the text output.
 func MTR(ctx context.Context, target string, count int) (*MTRResult, error) {
 	if err := ValidateTarget(target); err != nil {
 		return nil, fmt.Errorf("invalid target: %w", err)
@@ -58,17 +42,19 @@ func MTR(ctx context.Context, target string, count int) (*MTRResult, error) {
 	if count <= 0 {
 		count = 10
 	}
+	if count > 100 {
+		count = 100
+	}
 
-	// Build the command – never via sh -c
 	args := []string{
-		"--json",
 		"--report",
+		"--report-wide",
 		"--report-cycles", fmt.Sprintf("%d", count),
 		target,
 	}
 
 	cmd := exec.CommandContext(ctx, "mtr", args...)
-	cmd.WaitDelay = 60 * time.Second
+	cmd.WaitDelay = 120 * time.Second
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -78,30 +64,53 @@ func MTR(ctx context.Context, target string, count int) (*MTRResult, error) {
 		return nil, fmt.Errorf("mtr failed: %w (stderr: %s)", err, stderr.String())
 	}
 
-	var mtrOut mtrJSON
-	if err := json.Unmarshal(stdout.Bytes(), &mtrOut); err != nil {
-		return nil, fmt.Errorf("failed to parse mtr output: %w", err)
-	}
-
 	result := &MTRResult{
 		Target: target,
-		Hops:   make([]MTRHop, 0, len(mtrOut.Report.Hubs)),
+		Hops:   []MTRHop{},
 	}
 
-	for _, hub := range mtrOut.Report.Hubs {
-		recv := 0
-		if hub.Snt > 0 {
-			recv = int(float64(hub.Snt) * (1.0 - hub.Loss/100.0))
+	scanner := bufio.NewScanner(&stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		match := mtrLineRegex.FindStringSubmatch(line)
+		if match == nil {
+			continue
 		}
+
+		// Split the rest: "host  Loss%  Snt  Last  Avg  Best  Wrst  StDev"
+		fields := strings.Fields(match[1])
+		if len(fields) < 7 {
+			continue
+		}
+
+		host := fields[0]
+		lossStr := strings.TrimSuffix(fields[1], "%")
+		loss, _ := strconv.ParseFloat(lossStr, 64)
+		sent, _ := strconv.Atoi(fields[2])
+		// fields[3] = Last (skip)
+		avg, _ := strconv.ParseFloat(fields[4], 64)
+		best, _ := strconv.ParseFloat(fields[5], 64)
+		worst, _ := strconv.ParseFloat(fields[6], 64)
+		stddev := 0.0
+		if len(fields) >= 8 {
+			stddev, _ = strconv.ParseFloat(fields[7], 64)
+		}
+
+		recv := sent
+		if sent > 0 {
+			recv = int(float64(sent) * (1.0 - loss/100.0))
+		}
+
 		result.Hops = append(result.Hops, MTRHop{
-			Host:   hub.Host,
-			Loss:   hub.Loss,
-			Sent:   hub.Snt,
+			Host:   host,
+			Loss:   loss,
+			Sent:   sent,
 			Recv:   recv,
-			Best:   hub.Best,
-			Avg:    hub.Avg,
-			Worst:  hub.Wrst,
-			StdDev: hub.StDev,
+			Best:   best,
+			Avg:    avg,
+			Worst:  worst,
+			StdDev: stddev,
 		})
 	}
 
