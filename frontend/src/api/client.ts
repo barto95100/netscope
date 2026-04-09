@@ -39,12 +39,11 @@ export interface Alert {
 }
 
 export interface DashboardStats {
-  total_scans: number
-  active_monitors: number
-  open_alerts: number
+  monitored_hosts: number
+  scans_today: number
+  running_scans: number
+  active_alerts: number
   critical_alerts: number
-  recent_scans: Scan[]
-  active_alerts: Alert[]
 }
 
 export interface CreateScanRequest {
