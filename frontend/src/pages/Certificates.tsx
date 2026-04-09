@@ -54,20 +54,37 @@ export function Certificates() {
     try {
       // Create an ssl_expiry monitor
       await api.monitors.create({ name: `SSL: ${target}`, type: 'ssl_expiry', target, interval_sec: 3600 })
-      // Also run an immediate SSL scan for instant results
-      await api.scans.create({ type: 'ssl', target })
       setTarget('')
       setShowForm(false)
-      // Wait a bit for scan to complete then refresh
-      setTimeout(refresh, 3000)
+      const addedTarget = target
+      // Show the monitor immediately (scanning state)
+      await refresh()
+      // Run SSL scan for detailed cert info
+      const scan = await api.scans.create({ type: 'ssl', target: addedTarget })
+      // Poll until scan completes
+      const poll = window.setInterval(async () => {
+        const updated = await api.scans.get(scan.id)
+        if (updated.status === 'completed' || updated.status === 'failed') {
+          window.clearInterval(poll)
+          refresh()
+        }
+      }, 1500)
     } finally {
       setAdding(false)
     }
   }
 
   async function handleRescan(domain: string) {
-    await api.scans.create({ type: 'ssl', target: domain })
-    setTimeout(refresh, 3000)
+    // Mark as scanning in UI
+    setMonitors(prev => prev.map(m => m.target === domain ? { ...m, certResult: undefined } : m))
+    const scan = await api.scans.create({ type: 'ssl', target: domain })
+    const poll = window.setInterval(async () => {
+      const updated = await api.scans.get(scan.id)
+      if (updated.status === 'completed' || updated.status === 'failed') {
+        window.clearInterval(poll)
+        refresh()
+      }
+    }, 1500)
   }
 
   async function handleDelete(id: string) {
@@ -87,8 +104,11 @@ export function Certificates() {
     return 'var(--color-green)'
   }
 
+  const spinStyle = `@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      <style>{spinStyle}</style>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-family-heading)', color: 'var(--color-text-primary)' }}>
@@ -150,7 +170,12 @@ export function Certificates() {
                         {grade}
                       </span>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.15)' }}>
+                      <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', color: 'var(--color-accent)', fontSize: '14px' }}>↻</span>
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
@@ -170,15 +195,19 @@ export function Certificates() {
                     )}
                   </div>
 
-                  {/* Days left */}
-                  {cert && (
+                  {/* Days left or scanning */}
+                  {cert ? (
                     <div className="text-right shrink-0">
                       <div className="text-lg font-bold" style={{ fontFamily: 'var(--font-family-heading)', color: daysColor(cert.days_left) }}>
                         {cert.days_left}d
                       </div>
                       <div className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>remaining</div>
                     </div>
-                  )}
+                  ) : !grade ? (
+                    <span className="text-xs px-2 py-1 rounded" style={{ fontFamily: 'var(--font-family-mono)', background: 'rgba(14,165,233,0.08)', color: 'var(--color-accent)' }}>
+                      Scanning...
+                    </span>
+                  ) : null}
 
                   {/* Interval */}
                   <span className="text-xs" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>
