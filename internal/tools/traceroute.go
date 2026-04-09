@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"net"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -21,8 +22,9 @@ type TracerouteHop struct {
 
 // TracerouteResult holds the result of a traceroute operation.
 type TracerouteResult struct {
-	Target string          `json:"target"`
-	Hops   []TracerouteHop `json:"hops"`
+	Target     string          `json:"target"`
+	ResolvedIP string          `json:"resolved_ip,omitempty"`
+	Hops       []TracerouteHop `json:"hops"`
 }
 
 // hopRegex matches traceroute output lines like:
@@ -53,8 +55,15 @@ func Traceroute(ctx context.Context, target string, maxHops int) (*TracerouteRes
 		return nil, fmt.Errorf("traceroute failed: %w", err)
 	}
 
+	// Resolve target IP
+	resolvedIP := ""
+	if ips, err := net.LookupHost(target); err == nil && len(ips) > 0 {
+		resolvedIP = ips[0]
+	}
+
 	result := &TracerouteResult{
-		Target: target,
+		Target:     target,
+		ResolvedIP: resolvedIP,
 		Hops:   []TracerouteHop{},
 	}
 
@@ -101,6 +110,23 @@ func Traceroute(ctx context.Context, target string, maxHops int) (*TracerouteRes
 		}
 
 		result.Hops = append(result.Hops, hop)
+	}
+
+	// Trim trailing timeouts (hops that never responded)
+	for len(result.Hops) > 0 && result.Hops[len(result.Hops)-1].Timeout {
+		result.Hops = result.Hops[:len(result.Hops)-1]
+	}
+
+	// If we didn't reach the resolved IP, add it as destination marker
+	if resolvedIP != "" && len(result.Hops) > 0 {
+		lastHop := result.Hops[len(result.Hops)-1]
+		if lastHop.Address != resolvedIP {
+			result.Hops = append(result.Hops, TracerouteHop{
+				TTL:     lastHop.TTL + 1,
+				Address: resolvedIP,
+				Host:    target,
+			})
+		}
 	}
 
 	return result, nil

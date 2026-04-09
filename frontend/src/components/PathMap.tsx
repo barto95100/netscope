@@ -379,7 +379,7 @@ export function PathMap({ hops, target, live: _live }: PathMapProps) {
           </span>
         ) : points.length > 0 ? (
           <span className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-            {points.length} hops &middot; {points[0]?.country} &rarr; {points[points.length - 1]?.country}
+            {points.length}/{hops.filter(h => !h.timeout).length} hops located &middot; {points[0]?.country} &rarr; {points[points.length - 1]?.country}
           </span>
         ) : null}
       </div>
