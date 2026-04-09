@@ -9,20 +9,17 @@ interface TracerouteHop {
   timeout?: boolean
 }
 
-interface MtrHop {
+interface MtrHopLive {
+  ttl: number
   host: string
-  loss_percent: number
   sent: number
   recv: number
+  loss_percent: number
+  last_ms: number
   best_ms: number
   avg_ms: number
   worst_ms: number
   stddev_ms: number
-}
-
-interface MtrResult {
-  target: string
-  hops: MtrHop[]
 }
 
 interface TracerouteResult {
@@ -35,24 +32,22 @@ type Mode = 'traceroute' | 'mtr'
 export function Traceroute() {
   const [target, setTarget] = useState('')
   const [maxHops, setMaxHops] = useState('30')
-  const [cycles, setCycles] = useState('10')
   const [mode, setMode] = useState<Mode>('traceroute')
   const [running, setRunning] = useState(false)
-  const [mtrRunning, setMtrRunning] = useState(false)
-  const [mtrCycle, setMtrCycle] = useState(0)
   const [traceHops, setTraceHops] = useState<TracerouteHop[]>([])
-  const [mtrHops, setMtrHops] = useState<MtrHop[]>([])
+  const [mtrHops, setMtrHops] = useState<MtrHopLive[]>([])
+  const [mtrSent, setMtrSent] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
   const stopRef = useRef(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const cleanup = useCallback(() => {
     stopRef.current = true
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
+    if (wsRef.current) {
+      try { wsRef.current.send('stop') } catch {}
+      wsRef.current.close()
+      wsRef.current = null
     }
-    setMtrRunning(false)
     setRunning(false)
   }, [])
 
@@ -70,10 +65,7 @@ export function Traceroute() {
             clearInterval(poll)
             resolve(s)
           }
-        } catch (e) {
-          clearInterval(poll)
-          reject(e)
-        }
+        } catch (e) { clearInterval(poll); reject(e) }
       }, 1000)
     })
   }
@@ -103,41 +95,42 @@ export function Traceroute() {
     }
   }
 
-  async function handleMtr(e: FormEvent) {
+  function handleMtr(e: FormEvent) {
     e.preventDefault()
     if (!target.trim()) return
     setError(null)
     setTraceHops([])
     setMtrHops([])
-    setMtrCycle(0)
-    setMtrRunning(true)
+    setMtrSent(0)
     setRunning(true)
     stopRef.current = false
 
-    const runOneCycle = async () => {
-      if (stopRef.current) return
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const ws = new WebSocket(`${proto}//${location.host}/api/ws/mtr/${encodeURIComponent(target.trim())}`)
+    wsRef.current = ws
+
+    ws.onmessage = (event) => {
       try {
-        const scan = await api.scans.create({ type: 'mtr', target: target.trim(), options: { count: parseInt(cycles, 10) } })
-        const result = await pollScan(scan.id)
-        if (stopRef.current) return
-        if (result.status === 'completed') {
-          const r = result.result as unknown as MtrResult
-          if (r?.hops) {
-            setMtrHops(r.hops)
-            setMtrCycle(prev => prev + 1)
-          }
+        const data = JSON.parse(event.data)
+        if (data.hops) {
+          setMtrHops(data.hops)
+          // Calculate total sent across all hops
+          const total = data.hops.reduce((acc: number, h: MtrHopLive) => Math.max(acc, h.sent), 0)
+          setMtrSent(total)
         }
-      } catch {
-        // ignore if stopped
-      }
+        if (data.type === 'done') {
+          setRunning(false)
+        }
+      } catch {}
     }
 
-    // Run first cycle immediately
-    await runOneCycle()
+    ws.onerror = () => {
+      setError('WebSocket connection failed')
+      setRunning(false)
+    }
 
-    // Then repeat every 15 seconds
-    if (!stopRef.current) {
-      intervalRef.current = setInterval(runOneCycle, 15000)
+    ws.onclose = () => {
+      setRunning(false)
     }
   }
 
@@ -194,21 +187,21 @@ export function Traceroute() {
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
               style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5 uppercase tracking-widest"
-              style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
-              {mode === 'traceroute' ? 'Max Hops' : 'Pings per cycle'}
-            </label>
-            <input type="number"
-              value={mode === 'traceroute' ? maxHops : cycles}
-              onChange={(e) => mode === 'traceroute' ? setMaxHops(e.target.value) : setCycles(e.target.value)}
-              min="1" max={mode === 'traceroute' ? 64 : 50} disabled={running}
-              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
-              style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
-          </div>
+          {mode === 'traceroute' && (
+            <div>
+              <label className="block text-xs font-medium mb-1.5 uppercase tracking-widest"
+                style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
+                Max Hops
+              </label>
+              <input type="number" value={maxHops} onChange={(e) => setMaxHops(e.target.value)}
+                min="1" max="64" disabled={running}
+                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
+            </div>
+          )}
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           {!running ? (
             <button type="submit" className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white"
               style={{ background: 'linear-gradient(to right, var(--color-accent), #0284c7)', fontFamily: 'var(--font-family-heading)' }}>
@@ -220,10 +213,15 @@ export function Traceroute() {
               Stop
             </button>
           )}
-          {mtrRunning && (
+          {running && mode === 'mtr' && (
             <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-family-mono)' }}>
               <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />
-              Cycle #{mtrCycle} &middot; refreshing every 15s
+              Live &middot; {mtrSent} pings sent
+            </span>
+          )}
+          {running && mode === 'traceroute' && (
+            <span className="text-xs" style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-family-mono)' }}>
+              Tracing route...
             </span>
           )}
         </div>
@@ -268,45 +266,44 @@ export function Traceroute() {
         </div>
       )}
 
-      {/* MTR result */}
+      {/* MTR live result */}
       {mtrHops.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
           <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
             <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
-              MTR &middot; {mtrHops.length} hops
+              MTR &middot; {mtrHops.length} hops &middot; {mtrSent} pings
             </span>
-            {mtrRunning && (
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />
-            )}
+            {running && <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs" style={{ fontFamily: 'var(--font-family-mono)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  {['#', 'Host', 'Loss%', 'Sent', 'Recv', 'Best', 'Avg', 'Worst', 'StDev'].map((col) => (
+                  {['#', 'Host', 'Loss%', 'Snt', 'Rcv', 'Last', 'Best', 'Avg', 'Worst', 'StDev'].map((col) => (
                     <th key={col} className="px-3 py-2 text-left font-medium uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {mtrHops.map((h, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{i + 1}</td>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-primary)' }}>{h.host || '???'}</td>
+                {mtrHops.map((h) => (
+                  <tr key={h.ttl} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl + 1}</td>
+                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-primary)' }}>{h.host}</td>
                     <td className="px-3 py-2.5" style={{ color: lossColor(h.loss_percent) }}>
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-bg-surface)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(h.loss_percent, 100)}%`, background: lossColor(h.loss_percent) }} />
+                          <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(h.loss_percent, 100)}%`, background: lossColor(h.loss_percent) }} />
                         </div>
                         {h.loss_percent.toFixed(1)}%
                       </div>
                     </td>
                     <td className="px-3 py-2.5" style={{ color: 'var(--color-text-secondary)' }}>{h.sent}</td>
                     <td className="px-3 py-2.5" style={{ color: 'var(--color-text-secondary)' }}>{h.recv}</td>
-                    <td className="px-3 py-2.5" style={{ color: rttColor(h.best_ms) }}>{h.best_ms.toFixed(1)}</td>
-                    <td className="px-3 py-2.5 font-semibold" style={{ color: rttColor(h.avg_ms) }}>{h.avg_ms.toFixed(1)}</td>
-                    <td className="px-3 py-2.5" style={{ color: rttColor(h.worst_ms) }}>{h.worst_ms.toFixed(1)}</td>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.stddev_ms.toFixed(1)}</td>
+                    <td className="px-3 py-2.5" style={{ color: rttColor(h.last_ms) }}>{h.last_ms > 0 ? h.last_ms.toFixed(1) : '-'}</td>
+                    <td className="px-3 py-2.5" style={{ color: rttColor(h.best_ms) }}>{h.best_ms > 0 ? h.best_ms.toFixed(1) : '-'}</td>
+                    <td className="px-3 py-2.5 font-semibold" style={{ color: rttColor(h.avg_ms) }}>{h.avg_ms > 0 ? h.avg_ms.toFixed(1) : '-'}</td>
+                    <td className="px-3 py-2.5" style={{ color: rttColor(h.worst_ms) }}>{h.worst_ms > 0 ? h.worst_ms.toFixed(1) : '-'}</td>
+                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.stddev_ms > 0 ? h.stddev_ms.toFixed(1) : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -318,7 +315,7 @@ export function Traceroute() {
       {running && mtrHops.length === 0 && traceHops.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
           <span className="text-sm" style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-family-mono)' }}>
-            {mode === 'mtr' ? 'Running MTR...' : 'Tracing route...'}
+            {mode === 'mtr' ? 'Starting MTR...' : 'Tracing route...'}
           </span>
         </div>
       )}
