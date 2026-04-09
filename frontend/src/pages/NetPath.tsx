@@ -252,167 +252,190 @@ export function NetPathPage() {
               `,
               backgroundSize: '40px 40px',
             }}>
-              <div className="p-6" style={{ minWidth: Math.max(currentTrace.hops.length * 140, 700) }}>
-                {/* SVG metro */}
-                <svg width="100%" height={compareTrace ? 200 : 140} style={{ overflow: 'visible' }}>
+              <div className="p-8 pb-6" style={{ minWidth: Math.max(currentTrace.hops.length * 110, 700) }}>
+                <svg width="100%" height={compareTrace ? 240 : 160} style={{ overflow: 'visible' }}>
                   <defs>
-                    <filter id="neon-glow">
-                      <feGaussianBlur stdDeviation="3" result="blur" />
-                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                    </filter>
-                    <filter id="neon-glow-strong">
-                      <feGaussianBlur stdDeviation="5" result="blur" />
-                      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                    </filter>
-                    {/* Animated dash for packet flow */}
+                    <filter id="ng"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                    <filter id="ng2"><feGaussianBlur stdDeviation="5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
                     <style>{`
-                      @keyframes dash-flow { to { stroke-dashoffset: -24; } }
-                      @keyframes node-scan { 0%,100% { opacity:0.3; r:12; } 50% { opacity:0.6; r:18; } }
+                      @keyframes dflow { to { stroke-dashoffset: -24; } }
+                      .np-tooltip { pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+                      .np-hop:hover .np-tooltip { opacity: 1; }
                     `}</style>
                   </defs>
 
-                  {/* Connection lines */}
+                  {/* === COMPARE (old) route rendered FIRST (behind) === */}
+                  {compareTrace && (() => {
+                    const maxLen = Math.max(currentTrace.hops.length, compareTrace.hops.length)
+                    const oldY = 160
+                    // Find divergence ranges
+                    const divStart: number[] = []
+                    const divEnd: number[] = []
+                    let inDiv = false
+                    for (let i = 0; i < maxLen; i++) {
+                      const cAddr = currentTrace.hops[i]?.address
+                      const pAddr = compareTrace.hops[i]?.address
+                      const isDiff = cAddr !== pAddr
+                      if (isDiff && !inDiv) { divStart.push(i); inDiv = true }
+                      if (!isDiff && inDiv) { divEnd.push(i); inDiv = false }
+                    }
+                    if (inDiv) divEnd.push(maxLen - 1)
+
+                    return divStart.map((start, si) => {
+                      const end = divEnd[si] ?? maxLen - 1
+                      const items = []
+                      // Branch down from main line
+                      const branchX = ((start > 0 ? start - 1 : 0) / (maxLen - 1)) * 100
+                      const startX = (start / (maxLen - 1)) * 100
+                      items.push(
+                        <path key={`br-down-${si}`}
+                          d={`M ${branchX}% 80 C ${branchX}% 120 ${startX}% 120 ${startX}% ${oldY}`}
+                          fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.3} strokeDasharray="5 5" />
+                      )
+                      // Old route segments
+                      for (let i = start; i <= end; i++) {
+                        const hop = compareTrace.hops[i]
+                        if (!hop) continue
+                        const x = (i / (maxLen - 1)) * 100
+                        // Line between old hops
+                        if (i > start) {
+                          const px = ((i - 1) / (maxLen - 1)) * 100
+                          items.push(
+                            <line key={`ol-${i}`} x1={`${px}%`} y1={oldY} x2={`${x}%`} y2={oldY}
+                              stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.25} strokeDasharray="4 4" strokeLinecap="round" />
+                          )
+                        }
+                        // Old node
+                        items.push(
+                          <g key={`on-${i}`}>
+                            <circle cx={`${x}%`} cy={oldY} r={6} fill="#0a0e16" stroke="#7a8ba8" strokeWidth={1} strokeOpacity={0.4} />
+                            <circle cx={`${x}%`} cy={oldY} r={2} fill="#7a8ba8" fillOpacity={0.4} />
+                            <text x={`${x}%`} y={oldY + 18} textAnchor="middle" fontSize={8}
+                              fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.4}>
+                              {hop.address || '???'}
+                            </text>
+                          </g>
+                        )
+                      }
+                      // Branch back up
+                      const endX = (end / (maxLen - 1)) * 100
+                      const rejoinX = ((end < maxLen - 1 ? end + 1 : end) / (maxLen - 1)) * 100
+                      items.push(
+                        <path key={`br-up-${si}`}
+                          d={`M ${endX}% ${oldY} C ${endX}% 120 ${rejoinX}% 120 ${rejoinX}% 80`}
+                          fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeOpacity={0.3} strokeDasharray="5 5" />
+                      )
+                      // Label
+                      items.push(
+                        <text key={`lbl-${si}`} x={`${(parseFloat(String(startX)) + parseFloat(String(endX))) / 2}%`} y={oldY + 32}
+                          textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" opacity={0.4}
+                          letterSpacing="1">PREVIOUS ROUTE</text>
+                      )
+                      return <g key={`divg-${si}`}>{items}</g>
+                    })
+                  })()}
+
+                  {/* === CURRENT route lines === */}
                   {currentTrace.hops.map((hop, i) => {
                     if (i === 0) return null
                     const x1 = ((i - 1) / (currentTrace.hops.length - 1)) * 100
                     const x2 = (i / (currentTrace.hops.length - 1)) * 100
                     const color = rttColor(hop.rtt_ms)
-                    const hasDivergence = divergences.has(i)
                     return (
-                      <g key={`line-${i}`}>
-                        {/* Wide glow */}
-                        <line x1={`${x1}%`} y1={70} x2={`${x2}%`} y2={70}
-                          stroke={color} strokeWidth={8} strokeOpacity={0.06} strokeLinecap="round" />
-                        {/* Medium glow */}
-                        <line x1={`${x1}%`} y1={70} x2={`${x2}%`} y2={70}
-                          stroke={color} strokeWidth={4} strokeOpacity={0.15} strokeLinecap="round" />
-                        {/* Core line */}
-                        <line x1={`${x1}%`} y1={70} x2={`${x2}%`} y2={70}
-                          stroke={color} strokeWidth={2} strokeOpacity={0.7} strokeLinecap="round"
-                          strokeDasharray={hasDivergence ? '3 5' : 'none'} filter="url(#neon-glow)" />
-                        {/* Animated packet flow dots */}
-                        <line x1={`${x1}%`} y1={70} x2={`${x2}%`} y2={70}
-                          stroke={color} strokeWidth={2} strokeOpacity={0.5}
-                          strokeDasharray="2 22" strokeLinecap="round"
-                          style={{ animation: 'dash-flow 1.5s linear infinite' }} />
+                      <g key={`cl-${i}`}>
+                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={8} strokeOpacity={0.05} strokeLinecap="round" />
+                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={3} strokeOpacity={0.15} strokeLinecap="round" />
+                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={2} strokeOpacity={0.7} strokeLinecap="round" filter="url(#ng)" />
+                        <line x1={`${x1}%`} y1={80} x2={`${x2}%`} y2={80} stroke={color} strokeWidth={2} strokeOpacity={0.4} strokeDasharray="2 22" strokeLinecap="round"
+                          style={{ animation: 'dflow 1.5s linear infinite' }} />
                       </g>
                     )
                   })}
 
-                  {/* Compare route divergences (old path) */}
-                  {compareTrace && Array.from(divergences.entries()).map(([idx, prevHop]) => {
-                    if (idx === 0) return null
-                    const x = (idx / (currentTrace.hops.length - 1)) * 100
-                    const xPrev = ((idx - 1) / (currentTrace.hops.length - 1)) * 100
-                    const xNext = idx < currentTrace.hops.length - 1 ? ((idx + 1) / (currentTrace.hops.length - 1)) * 100 : x
-                    return (
-                      <g key={`div-${idx}`} opacity={0.5}>
-                        {/* Branch down */}
-                        <path d={`M ${xPrev}% 70 Q ${(parseFloat(String(xPrev)) + parseFloat(String(x))) / 2}% 120 ${x}% 145`}
-                          fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeDasharray="4 4" />
-                        {/* Branch back up */}
-                        {idx < currentTrace.hops.length - 1 && (
-                          <path d={`M ${x}% 145 Q ${(parseFloat(String(x)) + parseFloat(String(xNext))) / 2}% 120 ${xNext}% 70`}
-                            fill="none" stroke="#7a8ba8" strokeWidth={1.5} strokeDasharray="4 4" />
-                        )}
-                        {/* Old hop node */}
-                        <circle cx={`${x}%`} cy={145} r={5} fill="#7a8ba8" fillOpacity={0.2} stroke="#7a8ba8" strokeWidth={1} />
-                        <text x={`${x}%`} y={168} textAnchor="middle" fontSize={8}
-                          fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.5}>
-                          {prevHop.address || '???'}
-                        </text>
-                        <text x={`${x}%`} y={178} textAnchor="middle" fontSize={7}
-                          fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" opacity={0.4}>
-                          OLD ROUTE
-                        </text>
-                      </g>
-                    )
-                  })}
-
-                  {/* Node markers */}
+                  {/* === CURRENT route nodes === */}
                   {currentTrace.hops.map((hop, i) => {
                     const x = (i / (currentTrace.hops.length - 1)) * 100
                     const isFirst = i === 0
                     const isLast = i === currentTrace.hops.length - 1
                     const hasDivergence = divergences.has(i)
                     const color = isFirst ? '#10b981' : isLast ? '#ef4444' : rttColor(hop.rtt_ms)
-                    const r = isFirst || isLast ? 8 : 5
+                    const r = isFirst || isLast ? 10 : 7
 
                     return (
-                      <g key={`node-${i}`}>
-                        {/* Scanning ring */}
-                        <circle cx={`${x}%`} cy={70} r={14} fill="none" stroke={color} strokeWidth={0.5} strokeOpacity={0.3}>
-                          <animate attributeName="r" values="10;20;10" dur={`${2 + i * 0.2}s`} repeatCount="indefinite" />
-                          <animate attributeName="stroke-opacity" values="0.3;0;0.3" dur={`${2 + i * 0.2}s`} repeatCount="indefinite" />
+                      <g key={`cn-${i}`} className="np-hop" style={{ cursor: 'pointer' }}>
+                        {/* Scan ring */}
+                        <circle cx={`${x}%`} cy={80} r={14} fill="none" stroke={color} strokeWidth={0.5} strokeOpacity={0.2}>
+                          <animate attributeName="r" values="12;22;12" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
+                          <animate attributeName="stroke-opacity" values="0.2;0;0.2" dur={`${2 + i * 0.15}s`} repeatCount="indefinite" />
                         </circle>
-                        {/* Outer ring */}
-                        <circle cx={`${x}%`} cy={70} r={r + 4} fill={color} fillOpacity={0.08} stroke={color} strokeWidth={0.5} strokeOpacity={0.3} />
-                        {/* Inner filled */}
-                        <circle cx={`${x}%`} cy={70} r={r} fill="#0a0e16" stroke={color} strokeWidth={2} filter="url(#neon-glow)" />
-                        {/* Center dot */}
-                        <circle cx={`${x}%`} cy={70} r={3} fill={color} filter="url(#neon-glow-strong)" />
-                        {/* Divergence alert ring */}
+                        {/* Outer glow ring */}
+                        <circle cx={`${x}%`} cy={80} r={r + 4} fill={color} fillOpacity={0.06} stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />
+                        {/* Main circle */}
+                        <circle cx={`${x}%`} cy={80} r={r} fill="#0a0e16" stroke={color} strokeWidth={2} filter="url(#ng)" />
+                        {/* Center glow */}
+                        <circle cx={`${x}%`} cy={80} r={r - 3} fill={color} fillOpacity={0.3} filter="url(#ng2)" />
+                        {/* RTT inside node */}
+                        {hop.rtt_ms > 0 && r >= 7 && (
+                          <text x={`${x}%`} y={84} textAnchor="middle" fontSize={7}
+                            fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="bold">
+                            {hop.rtt_ms < 10 ? hop.rtt_ms.toFixed(1) : Math.round(hop.rtt_ms)}
+                          </text>
+                        )}
+                        {/* Divergence warning ring */}
                         {hasDivergence && (
-                          <circle cx={`${x}%`} cy={70} r={r + 8} fill="none" stroke="#eab308" strokeWidth={1} strokeDasharray="3 3">
-                            <animate attributeName="r" values={`${r + 6};${r + 12};${r + 6}`} dur="1.5s" repeatCount="indefinite" />
+                          <circle cx={`${x}%`} cy={80} r={r + 8} fill="none" stroke="#eab308" strokeWidth={1} strokeDasharray="3 3">
+                            <animate attributeName="r" values={`${r + 6};${r + 14};${r + 6}`} dur="1.5s" repeatCount="indefinite" />
                             <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite" />
                           </circle>
                         )}
-                        {/* Labels above for source/target */}
-                        {isFirst && (
-                          <text x={`${x}%`} y={40} textAnchor="middle" fontSize={9}
-                            fontFamily="'IBM Plex Mono',monospace" fill="#10b981" filter="url(#neon-glow)"
-                            letterSpacing="2">SOURCE</text>
+                        {/* Source/Target labels */}
+                        {isFirst && <text x={`${x}%`} y={48} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill="#10b981" filter="url(#ng)" letterSpacing="2">SOURCE</text>}
+                        {isLast && <text x={`${x}%`} y={48} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" filter="url(#ng)" letterSpacing="2">TARGET</text>}
+                        {/* IP below node */}
+                        <text x={`${x}%`} y={102} textAnchor="middle" fontSize={8}
+                          fontFamily="'IBM Plex Mono',monospace" fill={color} opacity={0.8}>
+                          {hop.address || '*'}
+                        </text>
+                        {/* Hostname */}
+                        {hop.host && hop.host !== hop.address && (
+                          <text x={`${x}%`} y={113} textAnchor="middle" fontSize={7}
+                            fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.5}>
+                            {hop.host.length > 18 ? hop.host.slice(0, 18) + '…' : hop.host}
+                          </text>
                         )}
-                        {isLast && (
-                          <text x={`${x}%`} y={40} textAnchor="middle" fontSize={9}
-                            fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" filter="url(#neon-glow)"
-                            letterSpacing="2">TARGET</text>
-                        )}
+
+                        {/* Hover tooltip */}
+                        <g className="np-tooltip">
+                          <rect x={`${x}%`} y={-5} width={160} height={75} rx={8}
+                            transform={`translate(-80, 0)`}
+                            fill="#0b0f18" stroke={`${color}40`} strokeWidth={1}
+                            style={{ filter: `drop-shadow(0 0 12px ${color}20)` }} />
+                          <text x={`${x}%`} y={12} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="600">
+                            {isFirst ? 'Source' : isLast ? 'Destination' : `Hop ${i + 1}`}
+                          </text>
+                          <text x={`${x}%`} y={25} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#0ea5e9">
+                            {hop.address || '*'}
+                          </text>
+                          {hop.rtt_ms > 0 && (
+                            <text x={`${x}%`} y={38} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={rttColor(hop.rtt_ms)} fontWeight="bold">
+                              {hop.rtt_ms.toFixed(2)} ms
+                            </text>
+                          )}
+                          {hop.city && (
+                            <text x={`${x}%`} y={50} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">
+                              {hop.city}{hop.country ? `, ${hop.country}` : ''}
+                            </text>
+                          )}
+                          {hop.isp && (
+                            <text x={`${x}%`} y={62} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill="#4a5568">
+                              {hop.isp.length > 25 ? hop.isp.slice(0, 25) + '…' : hop.isp}
+                            </text>
+                          )}
+                        </g>
                       </g>
                     )
                   })}
                 </svg>
-
-                {/* Hop data cards below */}
-                <div className="flex" style={{ marginTop: 8 }}>
-                  {currentTrace.hops.map((hop, i) => {
-                    const isFirst = i === 0
-                    const isLast = i === currentTrace.hops.length - 1
-                    const color = isFirst ? '#10b981' : isLast ? '#ef4444' : rttColor(hop.rtt_ms)
-                    return (
-                      <div key={i} className="text-center px-1" style={{ flex: 1, minWidth: 120 }}>
-                        <div className="rounded-lg px-2 py-2 mx-0.5" style={{
-                          background: 'rgba(11,15,24,0.8)',
-                          border: `1px solid ${color}20`,
-                          boxShadow: `0 0 12px ${color}08`,
-                        }}>
-                          <div className="text-[10px] font-semibold truncate" style={{ color, fontFamily: 'var(--font-family-mono)' }}>
-                            {hop.host || hop.address || '???'}
-                          </div>
-                          <div className="text-[9px] truncate mt-0.5" style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-family-mono)', opacity: 0.7 }}>
-                            {hop.address || '*'}
-                          </div>
-                          {hop.rtt_ms > 0 && (
-                            <div className="text-[11px] font-bold mt-1" style={{ color: rttColor(hop.rtt_ms), fontFamily: 'var(--font-family-mono)', textShadow: `0 0 6px ${rttColor(hop.rtt_ms)}40` }}>
-                              {hop.rtt_ms.toFixed(1)}<span className="text-[8px] opacity-60">ms</span>
-                            </div>
-                          )}
-                          {hop.city && (
-                            <div className="text-[8px] truncate mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-                              {hop.city}{hop.country ? `, ${hop.country}` : ''}
-                            </div>
-                          )}
-                          {hop.isp && (
-                            <div className="text-[7px] truncate" style={{ color: 'var(--color-text-tertiary)', opacity: 0.5 }}>
-                              {hop.isp}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
             </div>
           </div>
