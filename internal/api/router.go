@@ -53,7 +53,7 @@ func NewRouter(s *Server) *chi.Mux {
 
 	// WebSocket
 	r.Get("/api/ws/scans/{id}", s.HandleWebSocket)
-	r.Get("/api/ws/mtr/{target}", s.HandleMtrWebSocket)
+	r.Get("/api/ws/mtr", s.HandleMtrWebSocket)
 
 	return r
 }

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/barto/netscope/internal/tools"
-	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 )
 
@@ -40,7 +39,7 @@ type MtrLiveUpdate struct {
 
 // HandleMtrWebSocket handles GET /api/ws/mtr/{target}.
 func (s *Server) HandleMtrWebSocket(w http.ResponseWriter, r *http.Request) {
-	target := chi.URLParam(r, "target")
+	target := r.URL.Query().Get("target")
 
 	if err := tools.ValidateTarget(target); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
