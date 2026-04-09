@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Scan, type Alert } from '../api/client'
 import { AlertRow } from '../components/AlertRow'
@@ -7,14 +7,23 @@ import { StatCard } from '../components/StatCard'
 import { useDashboard } from '../hooks/useDashboard'
 
 export function Dashboard() {
-  const { stats, loading, refresh } = useDashboard()
+  const { stats, loading, refresh: refreshStats } = useDashboard()
   const [scans, setScans] = useState<Scan[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
 
-  useEffect(() => {
+  const refreshPanels = useCallback(() => {
     api.scans.list({ limit: 5 }).then(setScans).catch(() => {})
     api.alerts.list({ status: 'active' }).then(setAlerts).catch(() => {})
-  }, [stats])
+  }, [])
+
+  useEffect(() => {
+    refreshPanels()
+  }, [refreshPanels, stats])
+
+  const refresh = useCallback(() => {
+    refreshStats()
+    refreshPanels()
+  }, [refreshStats, refreshPanels])
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
