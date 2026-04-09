@@ -152,7 +152,7 @@ export function Traceroute() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-[1600px] mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-family-heading)', color: 'var(--color-text-primary)' }}>
           Traceroute / MTR
@@ -235,108 +235,103 @@ export function Traceroute() {
         </div>
       )}
 
-      {/* Traceroute result */}
-      {traceHops.length > 0 && (
-        <div className="rounded-xl overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
-            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
-              Route ({traceHops.length} hops)
-            </span>
+      {/* Two-column layout: table left, map right */}
+      {(traceHops.length > 0 || mtrHops.length > 0) ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4" style={{ minHeight: 420 }}>
+          {/* Left: table */}
+          <div className="overflow-hidden flex flex-col">
+            {/* Traceroute table */}
+            {traceHops.length > 0 && (
+              <div className="rounded-xl overflow-hidden flex-1 flex flex-col" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                <div className="px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
+                    Route ({traceHops.length} hops)
+                  </span>
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  <table className="w-full text-xs" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        {['#', 'Host', 'IP', 'RTT'].map((col) => (
+                          <th key={col} className="px-3 py-2 text-left font-medium uppercase tracking-wide sticky top-0" style={{ color: 'var(--color-text-tertiary)', background: 'var(--color-bg-card)' }}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {traceHops.map((h, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td className="px-3 py-2" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--color-text-primary)' }}>{h.timeout ? '*' : (h.host || h.address || '*')}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--color-accent)' }}>{h.timeout ? '*' : (h.address || '*')}</td>
+                          <td className="px-3 py-2" style={{ color: h.timeout ? 'var(--color-text-tertiary)' : rttColor(h.rtt_ms || 0) }}>
+                            {h.timeout ? '*' : `${h.rtt_ms?.toFixed(2) ?? '*'}ms`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* MTR table */}
+            {mtrHops.length > 0 && (
+              <div className="rounded-xl overflow-hidden flex-1 flex flex-col" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+                <div className="px-4 py-3 flex items-center justify-between shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
+                    MTR &middot; {mtrHops.length} hops &middot; {mtrSent} pings
+                  </span>
+                  {running && <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />}
+                </div>
+                <div className="overflow-auto flex-1">
+                  <table className="w-full text-[11px]" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        {['#', 'Host', 'Loss%', 'Snt', 'Last', 'Avg', 'Best', 'Wrst'].map((col) => (
+                          <th key={col} className="px-2 py-2 text-left font-medium uppercase tracking-wide sticky top-0" style={{ color: 'var(--color-text-tertiary)', background: 'var(--color-bg-card)', fontSize: '9px' }}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mtrHops.map((h) => (
+                        <tr key={h.ttl} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td className="px-2 py-1.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl + 1}</td>
+                          <td className="px-2 py-1.5 max-w-[120px] truncate" style={{ color: 'var(--color-text-primary)' }}>{h.host}</td>
+                          <td className="px-2 py-1.5" style={{ color: lossColor(h.loss_percent) }}>{h.loss_percent.toFixed(1)}%</td>
+                          <td className="px-2 py-1.5" style={{ color: 'var(--color-text-secondary)' }}>{h.sent}</td>
+                          <td className="px-2 py-1.5" style={{ color: rttColor(h.last_ms) }}>{h.last_ms > 0 ? h.last_ms.toFixed(1) : '-'}</td>
+                          <td className="px-2 py-1.5 font-semibold" style={{ color: rttColor(h.avg_ms) }}>{h.avg_ms > 0 ? h.avg_ms.toFixed(1) : '-'}</td>
+                          <td className="px-2 py-1.5" style={{ color: rttColor(h.best_ms) }}>{h.best_ms > 0 ? h.best_ms.toFixed(1) : '-'}</td>
+                          <td className="px-2 py-1.5" style={{ color: rttColor(h.worst_ms) }}>{h.worst_ms > 0 ? h.worst_ms.toFixed(1) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
-          <table className="w-full text-xs" style={{ fontFamily: 'var(--font-family-mono)' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                {['#', 'Host', 'IP', 'RTT'].map((col) => (
-                  <th key={col} className="px-4 py-2 text-left font-medium uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>{col}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {traceHops.map((h, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td className="px-4 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl}</td>
-                  <td className="px-4 py-2.5" style={{ color: 'var(--color-text-primary)' }}>{h.timeout ? '*' : (h.host || h.address || '*')}</td>
-                  <td className="px-4 py-2.5" style={{ color: 'var(--color-accent)' }}>{h.timeout ? '*' : (h.address || '*')}</td>
-                  <td className="px-4 py-2.5" style={{ color: h.timeout ? 'var(--color-text-tertiary)' : rttColor(h.rtt_ms || 0) }}>
-                    {h.timeout ? '*' : `${h.rtt_ms?.toFixed(2) ?? '*'}ms`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
-      {/* Path Map for traceroute */}
-      {traceHops.length > 0 && (
-        <div className="mt-4">
-          <PathMap hops={traceHops} target={target} />
-        </div>
-      )}
-
-      {/* MTR live result */}
-      {mtrHops.length > 0 && (
-        <div className="rounded-xl overflow-hidden" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
-          <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border)' }}>
-            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
-              MTR &middot; {mtrHops.length} hops &middot; {mtrSent} pings
-            </span>
-            {running && <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-accent)' }} />}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{ fontFamily: 'var(--font-family-mono)' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  {['#', 'Host', 'Loss%', 'Snt', 'Rcv', 'Last', 'Best', 'Avg', 'Worst', 'StDev'].map((col) => (
-                    <th key={col} className="px-3 py-2 text-left font-medium uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {mtrHops.map((h) => (
-                  <tr key={h.ttl} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl + 1}</td>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-primary)' }}>{h.host}</td>
-                    <td className="px-3 py-2.5" style={{ color: lossColor(h.loss_percent) }}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-bg-surface)' }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(h.loss_percent, 100)}%`, background: lossColor(h.loss_percent) }} />
-                        </div>
-                        {h.loss_percent.toFixed(1)}%
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-secondary)' }}>{h.sent}</td>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-secondary)' }}>{h.recv}</td>
-                    <td className="px-3 py-2.5" style={{ color: rttColor(h.last_ms) }}>{h.last_ms > 0 ? h.last_ms.toFixed(1) : '-'}</td>
-                    <td className="px-3 py-2.5" style={{ color: rttColor(h.best_ms) }}>{h.best_ms > 0 ? h.best_ms.toFixed(1) : '-'}</td>
-                    <td className="px-3 py-2.5 font-semibold" style={{ color: rttColor(h.avg_ms) }}>{h.avg_ms > 0 ? h.avg_ms.toFixed(1) : '-'}</td>
-                    <td className="px-3 py-2.5" style={{ color: rttColor(h.worst_ms) }}>{h.worst_ms > 0 ? h.worst_ms.toFixed(1) : '-'}</td>
-                    <td className="px-3 py-2.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.stddev_ms > 0 ? h.stddev_ms.toFixed(1) : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Right: map */}
+          <div className="min-h-[420px]">
+            {traceHops.length > 0 && (
+              <PathMap hops={traceHops} target={target} />
+            )}
+            {mtrHops.length > 0 && (
+              <PathMap
+                hops={mtrHops.map(h => ({ ttl: h.ttl, address: h.host !== '???' ? h.host : undefined, host: h.host, rtt_ms: h.avg_ms, timeout: h.host === '???' }))}
+                target={target}
+              />
+            )}
           </div>
         </div>
-      )}
-
-      {/* Path Map for MTR */}
-      {mtrHops.length > 0 && !running && (
-        <div className="mt-4">
-          <PathMap
-            hops={mtrHops.map(h => ({ ttl: h.ttl, address: h.host !== '???' ? h.host : undefined, host: h.host, rtt_ms: h.avg_ms, timeout: h.host === '???' }))}
-            target={target}
-          />
-        </div>
-      )}
-
-      {running && mtrHops.length === 0 && traceHops.length === 0 && (
+      ) : running ? (
         <div className="rounded-xl p-8 text-center" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
           <span className="text-sm" style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-family-mono)' }}>
             {mode === 'mtr' ? 'Starting MTR...' : 'Tracing route...'}
           </span>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
