@@ -183,8 +183,8 @@ export function Traceroute() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
-          <div className={mode === 'traceroute' ? 'sm:col-span-3' : 'sm:col-span-2'}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium mb-1.5 uppercase tracking-widest"
               style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
               Target
@@ -194,30 +194,18 @@ export function Traceroute() {
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
               style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
           </div>
-          {mode === 'traceroute' && (
-            <div>
-              <label className="block text-xs font-medium mb-1.5 uppercase tracking-widest"
-                style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
-                Max Hops
-              </label>
-              <input type="number" value={maxHops} onChange={(e) => setMaxHops(e.target.value)}
-                min="1" max="64" disabled={running}
-                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
-                style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
-            </div>
-          )}
-          {mode === 'mtr' && (
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-medium mb-1.5 uppercase tracking-widest"
-                style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
-                Pings per cycle
-              </label>
-              <input type="number" value={cycles} onChange={(e) => setCycles(e.target.value)}
-                min="1" max="50" disabled={running}
-                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
-                style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-medium mb-1.5 uppercase tracking-widest"
+              style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-heading)' }}>
+              {mode === 'traceroute' ? 'Max Hops' : 'Pings per cycle'}
+            </label>
+            <input type="number"
+              value={mode === 'traceroute' ? maxHops : cycles}
+              onChange={(e) => mode === 'traceroute' ? setMaxHops(e.target.value) : setCycles(e.target.value)}
+              min="1" max={mode === 'traceroute' ? 64 : 50} disabled={running}
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+              style={{ background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }} />
+          </div>
         </div>
 
         <div className="flex gap-3">
