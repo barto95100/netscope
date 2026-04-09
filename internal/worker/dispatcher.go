@@ -73,34 +73,40 @@ func (d *Dispatcher) HandleJob(ctx context.Context, job queue.ScanJob) {
 func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorResult, error) {
 	opts := parseOptions(job.Options)
 
+	// Strip URL scheme for non-HTTP tools
+	target := job.Target
+	if job.Type != "headers" {
+		target = tools.StripURLScheme(target)
+	}
+
 	switch job.Type {
 	case "ping":
 		count := opts.Count
 		if count <= 0 {
 			count = 5
 		}
-		res, err := tools.Ping(ctx, job.Target, count)
+		res, err := tools.Ping(ctx, target, count)
 		if err != nil {
 			return nil, err
 		}
 		return marshalResult(res)
 
 	case "dns":
-		res, err := tools.DNSLookup(ctx, job.Target, opts.Types)
+		res, err := tools.DNSLookup(ctx, target, opts.Types)
 		if err != nil {
 			return nil, err
 		}
 		return marshalResult(res)
 
 	case "whois":
-		res, err := tools.WhoisLookup(ctx, job.Target)
+		res, err := tools.WhoisLookup(ctx, target)
 		if err != nil {
 			return nil, err
 		}
 		return marshalResult(res)
 
 	case "ssl":
-		res, err := tools.SSLAudit(ctx, job.Target)
+		res, err := tools.SSLAudit(ctx, target)
 		if err != nil {
 			return nil, err
 		}
@@ -118,14 +124,14 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		if profile == "" {
 			profile = "standard"
 		}
-		res, err := tools.PortScan(ctx, job.Target, profile, opts.DetectServices)
+		res, err := tools.PortScan(ctx, target, profile, opts.DetectServices)
 		if err != nil {
 			return nil, err
 		}
 		return marshalResult(res)
 
 	case "traceroute":
-		res, err := tools.Traceroute(ctx, job.Target, opts.MaxHops)
+		res, err := tools.Traceroute(ctx, target, opts.MaxHops)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +142,7 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		if count <= 0 {
 			count = 10
 		}
-		res, err := tools.MTR(ctx, job.Target, count)
+		res, err := tools.MTR(ctx, target, count)
 		if err != nil {
 			return nil, err
 		}

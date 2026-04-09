@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,15 +105,21 @@ func (s *Scheduler) check(ctx context.Context, m models.Monitor) {
 
 	start := time.Now()
 
+	// Strip URL scheme for non-HTTP monitors
+	target := m.Target
+	if m.Type != "http" {
+		target = stripScheme(target)
+	}
+
 	switch m.Type {
 	case "http":
 		status, latencyMs, statusCode, errMsg = checkHTTP(checkCtx, m.Target)
 	case "tcp":
-		status, latencyMs, errMsg = checkTCP(checkCtx, m.Target)
+		status, latencyMs, errMsg = checkTCP(checkCtx, target)
 	case "icmp":
-		status, latencyMs, errMsg = checkICMP(checkCtx, m.Target)
+		status, latencyMs, errMsg = checkICMP(checkCtx, target)
 	case "ssl_expiry":
-		status, latencyMs, errMsg = checkSSLExpiry(checkCtx, m.Target)
+		status, latencyMs, errMsg = checkSSLExpiry(checkCtx, target)
 	default:
 		status = "down"
 		errMsg = fmt.Sprintf("unknown monitor type: %s", m.Type)
@@ -249,6 +256,16 @@ func (s *Scheduler) checkCertExpiryWarning(ctx context.Context, m models.Monitor
 	}
 }
 
+func stripScheme(target string) string {
+	t := strings.TrimPrefix(target, "https://")
+	t = strings.TrimPrefix(t, "http://")
+	// Remove trailing path
+	if idx := strings.IndexAny(t, "/?#"); idx != -1 {
+		t = t[:idx]
+	}
+	return t
+}
+
 func checkHTTP(ctx context.Context, target string) (status string, latencyMs float32, statusCode int16, errMsg string) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	start := time.Now()
@@ -274,6 +291,10 @@ func checkHTTP(ctx context.Context, target string) (status string, latencyMs flo
 }
 
 func checkTCP(ctx context.Context, target string) (status string, latencyMs float32, errMsg string) {
+	// Add default port if missing
+	if _, _, err := net.SplitHostPort(target); err != nil {
+		target = target + ":443"
+	}
 	start := time.Now()
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	conn, err := dialer.DialContext(ctx, "tcp", target)

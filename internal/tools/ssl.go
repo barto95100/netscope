@@ -41,7 +41,8 @@ func SSLAudit(ctx context.Context, target string) (*SSLResult, error) {
 		return nil, fmt.Errorf("invalid target: %w", err)
 	}
 
-	host := target
+	// Strip URL scheme
+	host := StripURLScheme(target)
 	port := "443"
 	if h, p, err := net.SplitHostPort(target); err == nil {
 		host = h
