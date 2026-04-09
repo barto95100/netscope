@@ -47,12 +47,14 @@ func (s *Server) HandleMtrWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	target = tools.StripURLScheme(target)
 
+	log.Printf("mtr ws: upgrading connection for target=%s", target)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("mtr ws: upgrade error: %v", err)
 		return
 	}
 	defer conn.Close()
+	log.Printf("mtr ws: connected, starting mtr for %s", target)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -66,13 +68,22 @@ func (s *Server) HandleMtrWebSocket(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if string(msg) == "stop" {
+				log.Printf("mtr ws: stop received for %s", target)
 				cancel()
 				return
 			}
 		}
 	}()
 
-	cmd := exec.CommandContext(ctx, "mtr", "--raw", "--no-dns", target)
+	mtrPath, err := exec.LookPath("mtr")
+	if err != nil {
+		log.Printf("mtr ws: mtr binary not found: %v", err)
+		conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","message":"mtr not found on server"}`))
+		return
+	}
+	log.Printf("mtr ws: using mtr at %s", mtrPath)
+
+	cmd := exec.CommandContext(ctx, mtrPath, "--raw", "--no-dns", target)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Printf("mtr ws: pipe error: %v", err)
