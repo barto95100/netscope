@@ -9,6 +9,7 @@ import (
 
 	"github.com/barto/netscope/internal/config"
 	"github.com/barto/netscope/internal/database"
+	"github.com/barto/netscope/internal/monitor"
 	"github.com/barto/netscope/internal/queue"
 	"github.com/barto/netscope/internal/worker"
 )
@@ -67,6 +68,10 @@ func main() {
 	}
 
 	log.Println("worker: listening for scan jobs")
+
+	// Start monitor scheduler
+	scheduler := monitor.NewScheduler(db)
+	go scheduler.Run(ctx)
 
 	// Block until shutdown signal
 	<-ctx.Done()
