@@ -5,13 +5,11 @@ import { useScanPoll } from '../hooks/useScanPoll'
 interface WhoisResult {
   domain?: string
   registrar?: string
-  created?: string
-  expires?: string
-  updated?: string
-  status?: string[]
+  created_at?: string
+  expires_at?: string
+  updated_at?: string
   name_servers?: string[]
-  registrant?: Record<string, string>
-  raw?: string
+  raw_text?: string
   [key: string]: unknown
 }
 
@@ -59,23 +57,20 @@ export function Whois() {
               </span>
             </div>
             <div className="px-4 py-2">
-              {result?.domain || result?.registrar || result?.created ? (
+              {result?.domain || result?.registrar || result?.created_at ? (
                 <>
                   <Field label="Domain" value={result?.domain} />
                   <Field label="Registrar" value={result?.registrar} />
-                  <Field label="Created" value={result?.created} />
-                  <Field label="Expires" value={result?.expires} />
-                  <Field label="Updated" value={result?.updated} />
+                  <Field label="Created" value={result?.created_at} />
+                  <Field label="Expires" value={result?.expires_at} />
+                  <Field label="Updated" value={result?.updated_at} />
                   {result?.name_servers && (
                     <Field label="Name Servers" value={result.name_servers.join(', ')} />
-                  )}
-                  {result?.status && (
-                    <Field label="Status" value={Array.isArray(result.status) ? result.status.join(', ') : String(result.status)} />
                   )}
                 </>
               ) : (
                 <pre className="py-3 text-xs overflow-x-auto" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)', lineHeight: 1.6 }}>
-                  {result?.raw ?? JSON.stringify(result, null, 2)}
+                  {result?.raw_text ?? JSON.stringify(result, null, 2)}
                 </pre>
               )}
             </div>

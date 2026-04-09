@@ -7,14 +7,19 @@ interface CertInfo {
   issuer?: string
   not_before?: string
   not_after?: string
-  san?: string[]
+  dns_names?: string[]
+  is_expired?: boolean
+  days_left?: number
+  serial?: string
+  sig_algo?: string
 }
 
 interface SslResult {
   grade?: string
   protocol?: string
-  cipher?: string
+  cipher_suite?: string
   certificates?: CertInfo[]
+  supported_protocols?: string[]
   issues?: string[]
   [key: string]: unknown
 }
@@ -80,11 +85,19 @@ export function SslAudit() {
                     </span>
                   </div>
                 )}
-                {result?.cipher && (
+                {result?.cipher_suite && (
                   <div>
                     <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Cipher: </span>
                     <span className="text-sm" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-family-mono)' }}>
-                      {result.cipher}
+                      {result.cipher_suite}
+                    </span>
+                  </div>
+                )}
+                {result?.supported_protocols && result.supported_protocols.length > 0 && (
+                  <div className="mt-1">
+                    <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Protocols: </span>
+                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-family-mono)' }}>
+                      {result.supported_protocols.join(', ')}
                     </span>
                   </div>
                 )}
@@ -106,7 +119,23 @@ export function SslAudit() {
                   <div key={i} className="px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
                     {cert.subject && <div className="text-sm mb-1" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }}>{cert.subject}</div>}
                     {cert.issuer && <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Issuer: {cert.issuer}</div>}
-                    {cert.not_after && <div className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>Expires: {cert.not_after}</div>}
+                    <div className="flex gap-4 mt-1">
+                      {cert.not_after && <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Expires: {new Date(cert.not_after).toLocaleDateString()}</span>}
+                      {cert.days_left != null && (
+                        <span className="text-xs font-medium" style={{ color: cert.days_left <= 7 ? 'var(--color-red)' : cert.days_left <= 30 ? 'var(--color-yellow)' : 'var(--color-green)' }}>
+                          {cert.days_left}d remaining
+                        </span>
+                      )}
+                      {cert.is_expired && <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--color-red)' }}>EXPIRED</span>}
+                    </div>
+                    {cert.dns_names && cert.dns_names.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {cert.dns_names.slice(0, 5).map((d, j) => (
+                          <span key={j} className="text-[10px] px-1.5 py-0.5 rounded" style={{ fontFamily: 'var(--font-family-mono)', background: 'var(--color-bg-surface)', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)' }}>{d}</span>
+                        ))}
+                        {cert.dns_names.length > 5 && <span className="text-[10px] px-1.5 py-0.5" style={{ color: 'var(--color-text-tertiary)' }}>+{cert.dns_names.length - 5} more</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
