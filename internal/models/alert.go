@@ -47,6 +47,46 @@ func UpdateAlertStatus(ctx context.Context, db *database.DB, id, status string, 
 	return nil
 }
 
+// GetActiveAlertForMonitor returns the active alert for a monitor, or nil if none.
+func GetActiveAlertForMonitor(ctx context.Context, db *database.DB, monitorID string) (*Alert, error) {
+	var a Alert
+	row := db.Pool.QueryRow(ctx,
+		`SELECT id, monitor_id, scan_id, severity, title, message, status, resolved_at, created_at
+		 FROM alerts WHERE monitor_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+		monitorID,
+	)
+	err := row.Scan(&a.ID, &a.MonitorID, &a.ScanID, &a.Severity, &a.Title, &a.Message, &a.Status, &a.ResolvedAt, &a.CreatedAt)
+	if err != nil {
+		return nil, err // pgx.ErrNoRows if none
+	}
+	return &a, nil
+}
+
+// CountRecentFailures counts how many consecutive "down" results a monitor has (most recent first).
+func CountRecentFailures(ctx context.Context, db *database.DB, monitorID string, limit int) (int, error) {
+	rows, err := db.Pool.Query(ctx,
+		`SELECT status FROM monitor_results WHERE monitor_id = $1 ORDER BY checked_at DESC LIMIT $2`,
+		monitorID, limit,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("CountRecentFailures: %w", err)
+	}
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return 0, err
+		}
+		if s != "down" {
+			break
+		}
+		count++
+	}
+	return count, rows.Err()
+}
+
 func ListAlerts(ctx context.Context, db *database.DB, status, severity string, limit, offset int) ([]Alert, error) {
 	args := []interface{}{}
 	conds := []string{}

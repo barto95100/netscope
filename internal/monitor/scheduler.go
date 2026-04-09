@@ -12,6 +12,7 @@ import (
 
 	"github.com/barto/netscope/internal/database"
 	"github.com/barto/netscope/internal/models"
+	"github.com/jackc/pgx/v5"
 	probing "github.com/prometheus-community/pro-bing"
 )
 
@@ -147,6 +148,105 @@ func (s *Scheduler) check(ctx context.Context, m models.Monitor) {
 	}
 
 	log.Printf("monitor check: %s (%s) -> %s (%.1fms)", m.Name, m.Target, status, latencyMs)
+
+	// Alert logic
+	s.handleAlerts(ctx, m, status)
+}
+
+const consecutiveFailuresThreshold = 3
+const certExpiryWarningDays = 7
+
+func (s *Scheduler) handleAlerts(ctx context.Context, m models.Monitor, status string) {
+	existingAlert, err := models.GetActiveAlertForMonitor(ctx, s.DB, m.ID)
+	if err != nil && err != pgx.ErrNoRows {
+		log.Printf("monitor alerts: failed to get active alert for %s: %v", m.Name, err)
+		return
+	}
+
+	if status == "down" {
+		// Count consecutive failures
+		failures, err := models.CountRecentFailures(ctx, s.DB, m.ID, consecutiveFailuresThreshold)
+		if err != nil {
+			log.Printf("monitor alerts: failed to count failures for %s: %v", m.Name, err)
+			return
+		}
+
+		if failures >= consecutiveFailuresThreshold && existingAlert == nil {
+			// Create CRITICAL alert
+			msg := fmt.Sprintf("%s (%s) has been down for %d consecutive checks", m.Name, m.Target, failures)
+			title := fmt.Sprintf("%s is DOWN", m.Name)
+			_, err := models.CreateAlert(ctx, s.DB, &m.ID, nil, "critical", title, &msg)
+			if err != nil {
+				log.Printf("monitor alerts: failed to create alert for %s: %v", m.Name, err)
+			} else {
+				log.Printf("monitor alerts: CRITICAL alert created for %s", m.Name)
+			}
+		}
+	} else if status == "up" && existingAlert != nil {
+		// Auto-resolve
+		now := time.Now()
+		err := models.UpdateAlertStatus(ctx, s.DB, existingAlert.ID, "resolved", &now)
+		if err != nil {
+			log.Printf("monitor alerts: failed to resolve alert for %s: %v", m.Name, err)
+		} else {
+			log.Printf("monitor alerts: auto-resolved alert for %s", m.Name)
+		}
+	}
+
+	// SSL expiry warning (for ssl_expiry monitors only)
+	if m.Type == "ssl_expiry" && status == "up" {
+		s.checkCertExpiryWarning(ctx, m)
+	}
+}
+
+func (s *Scheduler) checkCertExpiryWarning(ctx context.Context, m models.Monitor) {
+	host := m.Target
+	port := "443"
+	if h, p, err := net.SplitHostPort(m.Target); err == nil {
+		host, port = h, p
+	}
+
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", net.JoinHostPort(host, port), &tls.Config{
+		ServerName: host,
+	})
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	certs := conn.ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return
+	}
+
+	daysLeft := int(time.Until(certs[0].NotAfter).Hours() / 24)
+	if daysLeft > certExpiryWarningDays {
+		return
+	}
+
+	// Check if we already have a warning for this
+	existing, err := models.GetActiveAlertForMonitor(ctx, s.DB, m.ID)
+	if err != nil && err != pgx.ErrNoRows {
+		return
+	}
+	if existing != nil {
+		return // already have an alert
+	}
+
+	title := fmt.Sprintf("SSL certificate for %s expires in %d days", m.Target, daysLeft)
+	msg := fmt.Sprintf("Certificate CN=%s expires on %s", certs[0].Subject.CommonName, certs[0].NotAfter.Format("2006-01-02"))
+	severity := "warning"
+	if daysLeft <= 0 {
+		severity = "critical"
+		title = fmt.Sprintf("SSL certificate for %s has EXPIRED", m.Target)
+	}
+
+	_, err = models.CreateAlert(ctx, s.DB, &m.ID, nil, severity, title, &msg)
+	if err != nil {
+		log.Printf("monitor alerts: failed to create cert expiry alert for %s: %v", m.Name, err)
+	} else {
+		log.Printf("monitor alerts: %s alert created for cert expiry on %s (%d days left)", severity, m.Target, daysLeft)
+	}
 }
 
 func checkHTTP(ctx context.Context, target string) (status string, latencyMs float32, statusCode int16, errMsg string) {

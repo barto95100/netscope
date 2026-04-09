@@ -45,9 +45,9 @@ func (s *Server) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Active alerts (status = 'open' or 'acknowledged')
+	// Active alerts
 	err = s.DB.Pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM alerts WHERE status IN ('open', 'acknowledged')`).
+		`SELECT COUNT(*) FROM alerts WHERE status IN ('active', 'acknowledged')`).
 		Scan(&stats.ActiveAlerts)
 	if err != nil {
 		http.Error(w, "failed to query active alerts", http.StatusInternalServerError)
@@ -56,7 +56,7 @@ func (s *Server) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
 
 	// Critical alerts
 	err = s.DB.Pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM alerts WHERE severity = 'critical' AND status IN ('open', 'acknowledged')`).
+		`SELECT COUNT(*) FROM alerts WHERE severity = 'critical' AND status IN ('active', 'acknowledged')`).
 		Scan(&stats.CriticalAlerts)
 	if err != nil {
 		http.Error(w, "failed to query critical alerts", http.StatusInternalServerError)
