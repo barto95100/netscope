@@ -1,19 +1,20 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"fmt"
-	"net"
-	"time"
-
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv4"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 // TracerouteHop represents a single hop in a traceroute.
 type TracerouteHop struct {
 	TTL     int     `json:"ttl"`
 	Address string  `json:"address"`
+	Host    string  `json:"host,omitempty"`
 	RTT     float64 `json:"rtt_ms"`
 	Timeout bool    `json:"timeout"`
 }
@@ -24,8 +25,16 @@ type TracerouteResult struct {
 	Hops   []TracerouteHop `json:"hops"`
 }
 
-// Traceroute performs a traceroute to the target using raw ICMP sockets.
-// maxHops caps the number of hops; values <=0 default to 30.
+// hopRegex matches traceroute output lines like:
+//
+//	1  gateway (192.168.1.1)  1.234 ms  1.456 ms  1.789 ms
+//	2  * * *
+var hopRegex = regexp.MustCompile(`^\s*(\d+)\s+(.+)$`)
+var rttRegex = regexp.MustCompile(`([\d.]+)\s*ms`)
+var addrRegex = regexp.MustCompile(`\(?([\d.]+)\)?`)
+var hostAddrRegex = regexp.MustCompile(`(\S+)\s+\(([\d.]+)\)`)
+
+// Traceroute runs the system traceroute command.
 func Traceroute(ctx context.Context, target string, maxHops int) (*TracerouteResult, error) {
 	if err := ValidateTarget(target); err != nil {
 		return nil, fmt.Errorf("invalid target: %w", err)
@@ -34,100 +43,64 @@ func Traceroute(ctx context.Context, target string, maxHops int) (*TracerouteRes
 	if maxHops <= 0 {
 		maxHops = 30
 	}
-
-	// Resolve the target address
-	addrs, err := net.LookupHost(target)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve target: %w", err)
+	if maxHops > 64 {
+		maxHops = 64
 	}
-	destAddr := addrs[0]
+
+	cmd := exec.CommandContext(ctx, "traceroute", "-m", strconv.Itoa(maxHops), "-w", "2", target)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("traceroute failed: %w", err)
+	}
 
 	result := &TracerouteResult{
 		Target: target,
 		Hops:   []TracerouteHop{},
 	}
 
-	// Open a privileged ICMP listener
-	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
-	if err != nil {
-		// Fallback: return an error with a helpful message
-		return nil, fmt.Errorf("traceroute requires raw socket access (try running as root or with CAP_NET_RAW): %w", err)
-	}
-	defer conn.Close()
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		line := scanner.Text()
 
-	dst := &net.IPAddr{IP: net.ParseIP(destAddr)}
-	if dst.IP == nil {
-		return nil, fmt.Errorf("invalid destination IP: %s", destAddr)
-	}
-
-	p4 := conn.IPv4PacketConn()
-
-	for ttl := 1; ttl <= maxHops; ttl++ {
-		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
-		default:
-		}
-
-		if err := p4.SetTTL(ttl); err != nil {
-			return nil, fmt.Errorf("failed to set TTL: %w", err)
-		}
-
-		msg := icmp.Message{
-			Type: ipv4.ICMPTypeEcho,
-			Code: 0,
-			Body: &icmp.Echo{
-				ID:   ttl,
-				Seq:  ttl,
-				Data: []byte("netscope"),
-			},
-		}
-		data, err := msg.Marshal(nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal ICMP message: %w", err)
-		}
-
-		start := time.Now()
-		if _, err := conn.WriteTo(data, dst); err != nil {
-			return nil, fmt.Errorf("failed to send ICMP packet: %w", err)
-		}
-
-		conn.SetReadDeadline(time.Now().Add(3 * time.Second)) //nolint:errcheck
-
-		reply := make([]byte, 1500)
-		n, peer, err := conn.ReadFrom(reply)
-		rtt := float64(time.Since(start).Microseconds()) / 1000.0
-
-		if err != nil {
-			// Timeout
-			result.Hops = append(result.Hops, TracerouteHop{
-				TTL:     ttl,
-				Timeout: true,
-			})
+		match := hopRegex.FindStringSubmatch(line)
+		if match == nil {
 			continue
 		}
 
-		rm, err := icmp.ParseMessage(1, reply[:n])
-		if err != nil {
-			result.Hops = append(result.Hops, TracerouteHop{
-				TTL:     ttl,
-				Address: peer.String(),
-				RTT:     rtt,
-			})
+		ttl, _ := strconv.Atoi(match[1])
+		rest := match[2]
+
+		hop := TracerouteHop{TTL: ttl}
+
+		// Check for timeout
+		if strings.TrimSpace(rest) == "* * *" || strings.Count(rest, "*") >= 3 {
+			hop.Timeout = true
+			result.Hops = append(result.Hops, hop)
 			continue
 		}
 
-		hop := TracerouteHop{
-			TTL:     ttl,
-			Address: peer.String(),
-			RTT:     rtt,
+		// Extract host and address
+		if m := hostAddrRegex.FindStringSubmatch(rest); m != nil {
+			hop.Host = m[1]
+			hop.Address = m[2]
+		} else if m := addrRegex.FindStringSubmatch(rest); m != nil {
+			hop.Address = m[1]
 		}
+
+		// Extract best RTT
+		if rtts := rttRegex.FindAllStringSubmatch(rest, -1); len(rtts) > 0 {
+			best := 999999.0
+			for _, r := range rtts {
+				if v, err := strconv.ParseFloat(r[1], 64); err == nil && v < best {
+					best = v
+				}
+			}
+			if best < 999999.0 {
+				hop.RTT = best
+			}
+		}
+
 		result.Hops = append(result.Hops, hop)
-
-		// Echo Reply means we reached the destination
-		if rm.Type == ipv4.ICMPTypeEchoReply {
-			break
-		}
 	}
 
 	return result, nil
