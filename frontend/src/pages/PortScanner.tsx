@@ -30,7 +30,7 @@ export function PortScanner() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!target.trim()) return
-    await submit('port_scan', target.trim(), {
+    await submit('portscan', target.trim(), {
       profile,
       detect_services: detectServices,
     })

@@ -22,7 +22,7 @@ export function HttpHeaders() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!target.trim()) return
-    await submit('http_headers', target.trim(), { follow_redirects: followRedirects })
+    await submit('headers', target.trim(), { follow_redirects: followRedirects })
   }
 
   const result = scan?.result as HttpResult | null
