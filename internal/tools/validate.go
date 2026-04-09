@@ -24,36 +24,59 @@ var validScanTypes = map[string]bool{
 	"headers":    true,
 }
 
+// StripURLScheme removes http:// or https:// prefix and any trailing path from a target.
+func StripURLScheme(target string) string {
+	t := target
+	t = strings.TrimPrefix(t, "https://")
+	t = strings.TrimPrefix(t, "http://")
+	// Remove path/query if present
+	if idx := strings.IndexAny(t, "/?#"); idx != -1 {
+		t = t[:idx]
+	}
+	return t
+}
+
 // ValidateTarget validates a network target (IP, CIDR, or domain name).
+// Accepts URLs (http/https) by stripping the scheme first.
 func ValidateTarget(target string) error {
 	if target == "" {
 		return errors.New("target must not be empty")
 	}
 
-	if strings.HasPrefix(target, "-") {
+	// Strip URL scheme for tools that accept domains
+	cleaned := StripURLScheme(target)
+
+	if strings.HasPrefix(cleaned, "-") {
 		return errors.New("target must not start with a dash")
 	}
 
-	if strings.ContainsAny(target, dangerousChars) {
+	if strings.ContainsAny(cleaned, dangerousChars) {
 		return errors.New("target contains invalid characters")
 	}
 
 	// Accept valid IP address (IPv4 or IPv6)
-	if net.ParseIP(target) != nil {
+	if net.ParseIP(cleaned) != nil {
 		return nil
 	}
 
 	// Accept valid CIDR notation
-	if _, _, err := net.ParseCIDR(target); err == nil {
+	if _, _, err := net.ParseCIDR(cleaned); err == nil {
 		return nil
+	}
+
+	// Accept host:port (for TCP monitors)
+	if host, _, err := net.SplitHostPort(cleaned); err == nil {
+		if net.ParseIP(host) != nil || domainRegex.MatchString(host) {
+			return nil
+		}
 	}
 
 	// Accept valid domain name
-	if domainRegex.MatchString(target) {
+	if domainRegex.MatchString(cleaned) {
 		return nil
 	}
 
-	return errors.New("target must be a valid IP address, CIDR range, or domain name")
+	return errors.New("target must be a valid IP address, CIDR range, URL, or domain name")
 }
 
 // ValidateScanType validates the scan type against a whitelist of allowed values.
