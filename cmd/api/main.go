@@ -34,6 +34,30 @@ func main() {
 	}
 	defer db.Close()
 
+	// Run migrations
+	log.Println("running database migrations...")
+	migrationDir := "file://migrations"
+	if dir := os.Getenv("MIGRATION_DIR"); dir != "" {
+		migrationDir = "file://" + dir
+	}
+	migrateDBURL := strings.Replace(cfg.DatabaseURL, "postgres://", "pgx5://", 1)
+	m, err := migrate.New(migrationDir, migrateDBURL)
+	if err != nil {
+		log.Printf("migration setup: %v (skipping)", err)
+	} else {
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("migration failed: %v", err)
+		}
+		srcErr, dbErr := m.Close()
+		if srcErr != nil {
+			log.Printf("migration source close: %v", srcErr)
+		}
+		if dbErr != nil {
+			log.Printf("migration db close: %v", dbErr)
+		}
+		log.Println("migrations complete")
+	}
+
 	q, err := queue.NewNATSQueue(cfg.NatsURL)
 	if err != nil {
 		log.Fatalf("failed to connect to NATS: %v", err)
