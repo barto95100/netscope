@@ -61,13 +61,18 @@ export function Sidebar() {
       style={{ background: 'var(--color-bg-surface)', borderRight: '1px solid var(--color-border)' }}
     >
       {/* Brand */}
-      <div className="flex items-center gap-2 px-5 py-5" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold"
-          style={{ background: 'linear-gradient(135deg, var(--color-accent), #0284c7)' }}
-        >
-          N
-        </div>
+      <div className="flex items-center gap-2.5 px-5 py-5" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7" style={{ color: 'var(--color-accent)' }}>
+          <circle cx="12" cy="12" r="9" opacity="0.3"/>
+          <ellipse cx="12" cy="12" rx="3.5" ry="9" opacity="0.2"/>
+          <path d="M3 12h18" opacity="0.2"/>
+          <circle cx="7" cy="7" r="2" fill="currentColor" stroke="none"/>
+          <circle cx="18" cy="9" r="2" fill="currentColor" stroke="none"/>
+          <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
+          <line x1="7" y1="7" x2="18" y2="9" strokeWidth="1"/>
+          <line x1="18" y1="9" x2="10" y2="18" strokeWidth="1"/>
+          <line x1="10" y1="18" x2="7" y2="7" strokeWidth="1"/>
+        </svg>
         <span
           className="text-lg font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-family-heading)', color: 'var(--color-text-primary)' }}
