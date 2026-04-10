@@ -59,6 +59,10 @@ func NewRouter(s *Server) *chi.Mux {
 		r.Delete("/api/netpaths/{id}", s.DeleteNetPath)
 		r.Get("/api/netpaths/{id}/traces", s.ListNetPathTraces)
 		r.Get("/api/netpaths/{id}/changes", s.GetNetPathRouteChanges)
+
+		r.Post("/api/wordlists", s.UploadWordlist)
+		r.Get("/api/wordlists", s.ListWordlists)
+		r.Delete("/api/wordlists/{id}", s.DeleteWordlist)
 	})
 
 	return r
