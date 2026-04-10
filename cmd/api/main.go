@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +15,9 @@ import (
 	"github.com/barto/netscope/internal/config"
 	"github.com/barto/netscope/internal/database"
 	"github.com/barto/netscope/internal/queue"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func main() {
@@ -40,9 +44,10 @@ func main() {
 	wsHub := api.NewWSHub()
 
 	server := &api.Server{
-		DB:    db,
-		Queue: q,
-		WSHub: wsHub,
+		DB:        db,
+		Queue:     q,
+		WSHub:     wsHub,
+		StaticDir: cfg.StaticDir,
 	}
 
 	router := api.NewRouter(server)

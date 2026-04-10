@@ -10,9 +10,10 @@ import (
 
 // Server holds all dependencies for API handlers.
 type Server struct {
-	DB    *database.DB
-	Queue queue.JobQueue
-	WSHub *WSHub
+	DB        *database.DB
+	Queue     queue.JobQueue
+	WSHub     *WSHub
+	StaticDir string
 }
 
 // NewRouter creates and configures a chi router with all API routes.
@@ -65,6 +66,11 @@ func NewRouter(s *Server) *chi.Mux {
 
 		r.Get("/api/health", s.HandleHealth)
 	})
+
+	// Serve frontend static files (production mode)
+	if s.StaticDir != "" {
+		r.NotFound(StaticHandler(s.StaticDir))
+	}
 
 	return r
 }
