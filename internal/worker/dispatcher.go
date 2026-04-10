@@ -26,6 +26,7 @@ type jobOptions struct {
 	DetectServices bool     `json:"detect_services"`
 	MaxHops        int      `json:"max_hops"`
 	Types          []string `json:"types"`
+	TimeoutSec     int      `json:"timeout_sec"`
 }
 
 // HandleJob processes a single ScanJob end-to-end:
@@ -149,7 +150,33 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		return marshalResult(res)
 
 	case "vulnscan":
-		res, err := tools.VulnScan(ctx, target)
+		timeout := time.Duration(opts.TimeoutSec) * time.Second
+		if timeout <= 0 {
+			timeout = 3 * time.Minute
+		}
+		scanCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		onProgress := func(p tools.ModuleProgress) {
+			data, _ := json.Marshal(p)
+			d.publishProgress(ctx, job.ScanID, "progress", data)
+		}
+
+		res, err := tools.VulnScan(scanCtx, target, onProgress)
+		if err != nil {
+			return nil, err
+		}
+		return marshalResult(res)
+
+	case "vulnexploit":
+		var req tools.VulnExploitRequest
+		if len(job.Options) > 0 {
+			_ = json.Unmarshal(job.Options, &req)
+		}
+		if req.Target == "" {
+			req.Target = target
+		}
+		res, err := tools.VulnExploit(ctx, req)
 		if err != nil {
 			return nil, err
 		}
