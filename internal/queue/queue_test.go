@@ -8,21 +8,15 @@ import (
 const testNatsURL = "nats://localhost:4222"
 
 func TestPublishAndSubscribe(t *testing.T) {
-	sub, err := NewSubscriber(testNatsURL)
+	q, err := NewNATSQueue(testNatsURL)
 	if err != nil {
-		t.Fatalf("failed to create subscriber: %v", err)
+		t.Fatalf("failed to create queue: %v", err)
 	}
-	defer sub.Close()
-
-	pub, err := NewPublisher(testNatsURL)
-	if err != nil {
-		t.Fatalf("failed to create publisher: %v", err)
-	}
-	defer pub.Close()
+	defer q.Close()
 
 	received := make(chan ScanJob, 1)
 
-	if err := sub.SubscribeScanJobs(func(job ScanJob) {
+	if err := q.SubscribeJobs(func(job ScanJob) {
 		received <- job
 	}); err != nil {
 		t.Fatalf("failed to subscribe to scan jobs: %v", err)
@@ -37,7 +31,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 		Target: "8.8.8.8",
 	}
 
-	if err := pub.PublishScanJob(want); err != nil {
+	if err := q.PublishJob(want); err != nil {
 		t.Fatalf("failed to publish scan job: %v", err)
 	}
 
