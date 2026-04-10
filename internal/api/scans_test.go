@@ -30,31 +30,22 @@ func testServer(t *testing.T) (*api.Server, func()) {
 		t.Fatalf("failed to connect to database: %v", err)
 	}
 
-	publisher, err := queue.NewPublisher(cfg.NatsURL)
+	q, err := queue.NewNATSQueue(cfg.NatsURL)
 	if err != nil {
 		db.Close()
-		t.Fatalf("failed to create NATS publisher: %v", err)
-	}
-
-	subscriber, err := queue.NewSubscriber(cfg.NatsURL)
-	if err != nil {
-		db.Close()
-		publisher.Close()
-		t.Fatalf("failed to create NATS subscriber: %v", err)
+		t.Fatalf("failed to connect to NATS: %v", err)
 	}
 
 	wsHub := api.NewWSHub()
 
 	s := &api.Server{
-		DB:         db,
-		Publisher:  publisher,
-		Subscriber: subscriber,
-		WSHub:      wsHub,
+		DB:    db,
+		Queue: q,
+		WSHub: wsHub,
 	}
 
 	cleanup := func() {
-		subscriber.Close()
-		publisher.Close()
+		q.Close()
 		db.Close()
 	}
 

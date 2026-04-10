@@ -10,10 +10,9 @@ import (
 
 // Server holds all dependencies for API handlers.
 type Server struct {
-	DB         *database.DB
-	Publisher  *queue.Publisher
-	Subscriber *queue.Subscriber
-	WSHub      *WSHub
+	DB    *database.DB
+	Queue queue.JobQueue
+	WSHub *WSHub
 }
 
 // NewRouter creates and configures a chi router with all API routes.

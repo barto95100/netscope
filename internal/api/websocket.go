@@ -88,7 +88,7 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer s.WSHub.Unregister(scanID, conn)
 
 	// Subscribe to NATS progress for this scan
-	sub, err := s.Subscriber.SubscribeScanProgress(scanID, func(progress queue.ScanProgress) {
+	sub, err := s.Queue.SubscribeProgress(scanID, func(progress queue.ScanProgress) {
 		s.WSHub.Broadcast(scanID, progress)
 	})
 	if err != nil {

@@ -31,30 +31,22 @@ func main() {
 	defer db.Close()
 	log.Println("worker: connected to database")
 
-	// Create publisher
-	pub, err := queue.NewPublisher(cfg.NatsURL)
+	// Connect to NATS
+	q, err := queue.NewNATSQueue(cfg.NatsURL)
 	if err != nil {
-		log.Fatalf("worker: failed to create NATS publisher: %v", err)
+		log.Fatalf("worker: failed to connect to NATS: %v", err)
 	}
-	defer pub.Close()
-
-	// Create subscriber
-	sub, err := queue.NewSubscriber(cfg.NatsURL)
-	if err != nil {
-		log.Fatalf("worker: failed to create NATS subscriber: %v", err)
-	}
-	defer sub.Close()
-
+	defer q.Close()
 	log.Println("worker: connected to NATS")
 
 	// Create dispatcher
 	dispatcher := &worker.Dispatcher{
-		DB:        db,
-		Publisher: pub,
+		DB:    db,
+		Queue: q,
 	}
 
 	// Subscribe to scan jobs
-	if err := sub.SubscribeScanJobs(func(job queue.ScanJob) {
+	if err := q.SubscribeJobs(func(job queue.ScanJob) {
 		// Each job runs in its own goroutine so the subscriber is never blocked.
 		go func(j queue.ScanJob) {
 			jobCtx, cancel := context.WithCancel(ctx)

@@ -47,7 +47,7 @@ func (s *Server) CreateScan(w http.ResponseWriter, r *http.Request) {
 		Target:  scan.Target,
 		Options: scan.Options,
 	}
-	if err := s.Publisher.PublishScanJob(job); err != nil {
+	if err := s.Queue.PublishJob(job); err != nil {
 		// Log but don't fail — scan is created
 		_ = err
 	}

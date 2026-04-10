@@ -30,25 +30,19 @@ func main() {
 	}
 	defer db.Close()
 
-	publisher, err := queue.NewPublisher(cfg.NatsURL)
+	q, err := queue.NewNATSQueue(cfg.NatsURL)
 	if err != nil {
-		log.Fatalf("failed to create NATS publisher: %v", err)
+		log.Fatalf("failed to connect to NATS: %v", err)
 	}
-	defer publisher.Close()
-
-	subscriber, err := queue.NewSubscriber(cfg.NatsURL)
-	if err != nil {
-		log.Fatalf("failed to create NATS subscriber: %v", err)
-	}
-	defer subscriber.Close()
+	defer q.Close()
+	log.Println("connected to NATS")
 
 	wsHub := api.NewWSHub()
 
 	server := &api.Server{
-		DB:         db,
-		Publisher:  publisher,
-		Subscriber: subscriber,
-		WSHub:      wsHub,
+		DB:    db,
+		Queue: q,
+		WSHub: wsHub,
 	}
 
 	router := api.NewRouter(server)

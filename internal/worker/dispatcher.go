@@ -15,8 +15,8 @@ import (
 
 // Dispatcher receives scan jobs and dispatches them to the appropriate tool.
 type Dispatcher struct {
-	DB        *database.DB
-	Publisher *queue.Publisher
+	DB    *database.DB
+	Queue queue.JobQueue
 }
 
 // jobOptions holds the common options that can appear in a ScanJob.Options payload.
@@ -264,7 +264,7 @@ func (d *Dispatcher) publishProgress(ctx context.Context, scanID, status string,
 		Status: status,
 		Data:   data,
 	}
-	if err := d.Publisher.PublishScanProgress(progress); err != nil {
+	if err := d.Queue.PublishProgress(progress); err != nil {
 		log.Printf("dispatcher: failed to publish progress for scan %s: %v", scanID, err)
 	}
 }
