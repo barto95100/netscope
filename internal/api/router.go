@@ -62,6 +62,8 @@ func NewRouter(s *Server) *chi.Mux {
 		r.Post("/api/wordlists", s.UploadWordlist)
 		r.Get("/api/wordlists", s.ListWordlists)
 		r.Delete("/api/wordlists/{id}", s.DeleteWordlist)
+
+		r.Get("/api/health", s.HandleHealth)
 	})
 
 	return r
