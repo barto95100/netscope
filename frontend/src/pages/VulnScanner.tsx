@@ -51,6 +51,30 @@ interface ModuleProgress {
   duration_sec: number
 }
 
+interface PentestResult {
+  target: string
+  verdict: string
+  summary: { exploited: number; vulnerable: number; safe: number; total: number }
+  modules: PentestModuleResult[]
+  duration_sec: number
+}
+
+interface PentestModuleResult {
+  name: string
+  status: string
+  duration_sec: number
+  findings: PentestFinding[]
+}
+
+interface PentestFinding {
+  title: string
+  severity: string
+  success: boolean
+  details: string
+  evidence?: string[]
+  remediation?: string
+}
+
 const sevColor: Record<string, string> = {
   critical: '#ef4444',
   high: '#f97316',
@@ -117,6 +141,10 @@ export function VulnScanner() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [timeoutSec, setTimeoutSec] = useState(180)
   const [moduleProgress, setModuleProgress] = useState<ModuleProgress[]>([])
+  const [pentestScan, setPentestScan] = useState<Scan | null>(null)
+  const [pentestLoading, setPentestLoading] = useState(false)
+  const [pentestProgress, setPentestProgress] = useState<ModuleProgress[]>([])
+  const [pentestTimeout, setPentestTimeout] = useState(300)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -194,6 +222,55 @@ export function VulnScanner() {
       }, 1500)
     } catch {
       setExploitLoading(prev => ({ ...prev, [finding.id]: false }))
+    }
+  }
+
+  async function handlePentest() {
+    if (!result) return
+    setPentestLoading(true)
+    setPentestScan(null)
+    setPentestProgress([])
+    try {
+      const s = await api.scans.create({
+        type: 'pentest',
+        target: result.target,
+        options: {
+          timeout_sec: pentestTimeout,
+          findings: result.findings,
+        },
+      })
+      setPentestScan(s)
+
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const ws = new WebSocket(`${proto}//${window.location.host}/api/ws/scans/${s.id}`)
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data)
+        if (msg.status === 'progress' && msg.data) {
+          const progress: ModuleProgress = JSON.parse(typeof msg.data === 'string' ? msg.data : JSON.stringify(msg.data))
+          setPentestProgress(prev => [...prev, progress])
+        } else if (msg.status === 'completed' || msg.status === 'failed') {
+          api.scans.get(s.id).then(updated => {
+            setPentestScan(updated)
+            setPentestLoading(false)
+          })
+          ws.close()
+        }
+      }
+
+      ws.onerror = () => {
+        const poll = setInterval(async () => {
+          const updated = await api.scans.get(s.id)
+          setPentestScan(updated)
+          if (updated.status === 'completed' || updated.status === 'failed') {
+            clearInterval(poll)
+            setPentestLoading(false)
+          }
+        }, 2000)
+        ws.close()
+      }
+    } catch {
+      setPentestLoading(false)
     }
   }
 
@@ -558,6 +635,135 @@ export function VulnScanner() {
               </div>
             )
           })}
+
+          {/* Pentest Section */}
+          <div className="rounded-xl p-5" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
+            {!pentestScan && !pentestLoading && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-heading)' }}>
+                    Penetration Test
+                  </h3>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                    6 modules — brute-force, fuzzing, path traversal, auth bypass, upload test, CVE exploitation
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <select value={pentestTimeout} onChange={(e) => setPentestTimeout(Number(e.target.value))}
+                    className="px-3 py-2 rounded-lg text-xs"
+                    style={{ background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-family-mono)' }}>
+                    <option value={300}>5 min</option>
+                    <option value={600}>10 min</option>
+                    <option value={1800}>30 min</option>
+                  </select>
+                  <button onClick={handlePentest}
+                    className="px-4 py-2 rounded-lg text-xs font-medium text-white"
+                    style={{ background: 'linear-gradient(135deg, #dc2626, #991b1b)' }}>
+                    Launch Pentest
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {pentestLoading && (
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#dc2626' }} />
+                  <span className="text-sm font-medium" style={{ color: '#dc2626', fontFamily: 'var(--font-family-mono)' }}>
+                    PENTESTING {result.target.toUpperCase()}
+                  </span>
+                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
+                    {pentestProgress.length}/6 modules
+                  </span>
+                </div>
+                <div className="w-full h-1.5 rounded-full mb-4" style={{ background: 'var(--color-bg-surface)' }}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{
+                    width: `${(pentestProgress.length / 6) * 100}%`,
+                    background: 'linear-gradient(90deg, #dc2626, #991b1b)',
+                  }} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {['Login Brute-force', 'Parameter Fuzzing', 'Path Traversal', 'Auth Bypass', 'File Upload Test', 'CVE Exploitation'].map((name, i) => {
+                    const done = pentestProgress.find(p => p.module === name)
+                    const isRunning = !done && pentestProgress.length === i
+                    return (
+                      <div key={name} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{
+                        background: done ? (done.status === 'exploited' ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)') : isRunning ? 'rgba(239,68,68,0.06)' : 'transparent',
+                        border: `1px solid ${done ? (done.status === 'exploited' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)') : isRunning ? 'rgba(239,68,68,0.2)' : 'var(--color-border)'}`,
+                        color: done ? (done.status === 'exploited' ? '#ef4444' : '#10b981') : isRunning ? '#ef4444' : 'var(--color-text-tertiary)',
+                        fontFamily: 'var(--font-family-mono)',
+                      }}>
+                        {done ? (done.status === 'exploited' ? '!!' : '✓') : isRunning ? (
+                          <span className="inline-block w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: '#ef4444', borderTopColor: 'transparent' }} />
+                        ) : '○'}
+                        <span className="truncate">{name}</span>
+                        {done && done.findings > 0 && (
+                          <span className="ml-auto shrink-0 px-1.5 rounded" style={{
+                            background: done.status === 'exploited' ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+                            color: done.status === 'exploited' ? '#ef4444' : '#10b981',
+                          }}>{done.findings}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {pentestScan?.status === 'completed' && pentestScan.result && (() => {
+              const pr = pentestScan.result as unknown as PentestResult
+              const verdictColor = pr.verdict === 'COMPROMISED' ? '#ef4444' : pr.verdict === 'VULNERABLE' ? '#f97316' : '#10b981'
+              return (
+                <div>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="px-4 py-2 rounded-lg font-bold text-lg" style={{
+                      background: verdictColor + '15',
+                      border: `2px solid ${verdictColor}40`,
+                      color: verdictColor,
+                      fontFamily: 'var(--font-family-heading)',
+                    }}>{pr.verdict}</div>
+                    <div className="flex gap-3 text-xs" style={{ fontFamily: 'var(--font-family-mono)' }}>
+                      {pr.summary.exploited > 0 && <span style={{ color: '#ef4444' }}>{pr.summary.exploited} exploited</span>}
+                      {pr.summary.vulnerable > 0 && <span style={{ color: '#f97316' }}>{pr.summary.vulnerable} vulnerable</span>}
+                      <span style={{ color: '#10b981' }}>{pr.summary.safe} safe</span>
+                      <span style={{ color: 'var(--color-text-tertiary)' }}>{pr.duration_sec.toFixed(1)}s</span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {pr.modules.map((m) => (
+                      <div key={m.name} className="rounded-lg p-3" style={{
+                        background: m.status === 'exploited' ? 'rgba(239,68,68,0.04)' : m.status === 'vulnerable' ? 'rgba(249,115,22,0.04)' : 'rgba(16,185,129,0.04)',
+                        border: `1px solid ${m.status === 'exploited' ? 'rgba(239,68,68,0.15)' : m.status === 'vulnerable' ? 'rgba(249,115,22,0.15)' : 'rgba(16,185,129,0.15)'}`,
+                      }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span style={{ color: m.status === 'exploited' ? '#ef4444' : m.status === 'vulnerable' ? '#f97316' : '#10b981' }}>
+                            {m.status === 'exploited' ? '!!' : m.status === 'vulnerable' ? '!!' : '✓'}
+                          </span>
+                          <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }}>{m.name}</span>
+                          <span className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>{m.duration_sec.toFixed(1)}s</span>
+                        </div>
+                        {m.findings.map((f, fi) => (
+                          <div key={fi} className="ml-5 mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs" style={{ color: f.success ? '#ef4444' : '#10b981' }}>{f.success ? '✗' : '✓'}</span>
+                              <span className="text-xs" style={{ color: 'var(--color-text-primary)' }}>{f.title}</span>
+                              {f.severity && <span className="text-[10px] px-1.5 rounded" style={{ background: f.severity === 'critical' ? 'rgba(239,68,68,0.1)' : f.severity === 'high' ? 'rgba(249,115,22,0.1)' : 'rgba(234,179,8,0.1)', color: f.severity === 'critical' ? '#ef4444' : f.severity === 'high' ? '#f97316' : '#eab308' }}>{f.severity}</span>}
+                            </div>
+                            {f.details && <p className="text-[11px] ml-5 mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>{f.details}</p>}
+                            {f.evidence && f.evidence.length > 0 && (
+                              <div className="ml-5 mt-1 px-2 py-1 rounded text-[10px]" style={{ background: 'var(--color-bg-surface)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-family-mono)' }}>
+                                {f.evidence.map((e, ei) => <div key={ei}>{e}</div>)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
         </div>
       )}
     </div>

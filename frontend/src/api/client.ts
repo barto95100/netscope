@@ -73,6 +73,14 @@ export interface UpdateAlertRequest {
   status: string
 }
 
+export interface Wordlist {
+  id: string
+  name: string
+  type: string
+  entry_count: number
+  created_at: string
+}
+
 class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -188,4 +196,20 @@ export const api = {
       '/api/geolocate',
       { method: 'POST', body: JSON.stringify({ ips }) },
     ),
+
+  wordlists: {
+    list: () => request<Wordlist[]>('/api/wordlists'),
+
+    upload: async (name: string, type: string, file: File) => {
+      const form = new FormData()
+      form.append('name', name)
+      form.append('type', type)
+      form.append('file', file)
+      const res = await fetch('/api/wordlists', { method: 'POST', body: form })
+      if (!res.ok) throw new ApiError(res.status, await res.text())
+      return res.json() as Promise<Wordlist>
+    },
+
+    delete: (id: string) => request<void>(`/api/wordlists/${id}`, { method: 'DELETE' }),
+  },
 }
