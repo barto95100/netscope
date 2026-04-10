@@ -182,6 +182,58 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		}
 		return marshalResult(res)
 
+	case "pentest":
+		timeout := time.Duration(opts.TimeoutSec) * time.Second
+		if timeout <= 0 {
+			timeout = 5 * time.Minute
+		}
+		scanCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		var pentestOpts struct {
+			Findings           []tools.VulnFinding `json:"findings"`
+			UsernameWordlistID string              `json:"username_wordlist_id"`
+			PasswordWordlistID string              `json:"password_wordlist_id"`
+			TimeoutSec         int                 `json:"timeout_sec"`
+		}
+		if len(job.Options) > 0 {
+			json.Unmarshal(job.Options, &pentestOpts)
+		}
+
+		popts := tools.PentestOptions{
+			Findings: pentestOpts.Findings,
+		}
+
+		if pentestOpts.UsernameWordlistID != "" {
+			wl, err := models.GetWordlist(ctx, d.DB, pentestOpts.UsernameWordlistID)
+			if err == nil {
+				entries, err := tools.LoadWordlistFile(wl.FilePath)
+				if err == nil {
+					popts.CustomUsernames = entries
+				}
+			}
+		}
+		if pentestOpts.PasswordWordlistID != "" {
+			wl, err := models.GetWordlist(ctx, d.DB, pentestOpts.PasswordWordlistID)
+			if err == nil {
+				entries, err := tools.LoadWordlistFile(wl.FilePath)
+				if err == nil {
+					popts.CustomPasswords = entries
+				}
+			}
+		}
+
+		onProgress := func(p tools.ModuleProgress) {
+			data, _ := json.Marshal(p)
+			d.publishProgress(ctx, job.ScanID, "progress", data)
+		}
+
+		res, err := tools.Pentest(scanCtx, target, popts, onProgress)
+		if err != nil {
+			return nil, err
+		}
+		return marshalResult(res)
+
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", job.Type)
 	}

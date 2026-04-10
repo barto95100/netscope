@@ -19,9 +19,11 @@ var validScanTypes = map[string]bool{
 	"dns":        true,
 	"whois":      true,
 	"portscan":   true,
-	"vulnscan":   true,
-	"ssl":        true,
-	"headers":    true,
+	"vulnscan":     true,
+	"vulnexploit": true,
+	"pentest":     true,
+	"ssl":         true,
+	"headers":     true,
 }
 
 // StripURLScheme removes http:// or https:// prefix and any trailing path from a target.
