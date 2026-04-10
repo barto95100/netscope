@@ -186,7 +186,7 @@ func VulnScan(ctx context.Context, target string, onProgress func(ModuleProgress
 
 func vulnHTTPClient() *http.Client {
 	return &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -201,7 +201,7 @@ func vulnHTTPClient() *http.Client {
 
 func vulnHTTPClientNoRedirect() *http.Client {
 	return &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
@@ -222,8 +222,24 @@ func doGet(ctx context.Context, client *http.Client, url string) (*http.Response
 		return nil, "", err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	return resp, string(body), nil
+
+	// Read body with a 5s deadline to avoid slow-drip responses blocking forever
+	type readResult struct {
+		body []byte
+		err  error
+	}
+	ch := make(chan readResult, 1)
+	go func() {
+		b, e := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		ch <- readResult{b, e}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, "", ctx.Err()
+	case r := <-ch:
+		return resp, string(r.body), r.err
+	}
 }
 
 // ---------- Module 1: Sensitive Files ----------
@@ -281,6 +297,9 @@ func scanSensitiveFiles(ctx context.Context, baseURL string, nextID func() strin
 	}
 
 	for _, p := range probes {
+		if ctx.Err() != nil {
+			break
+		}
 		url := baseURL + "/" + p.path
 		resp, body, err := doGet(ctx, client, url)
 		if err != nil || resp == nil {
@@ -517,6 +536,9 @@ func scanInfoDisclosure(ctx context.Context, baseURL string, nextID func() strin
 	errorMarkers := []string{"stack trace", "Traceback", "Exception", "at System.", "at java.", "Fatal error", "Parse error", "Warning:", "Notice:", "Debug", "SQLSTATE", "MySQL", "PostgreSQL", "ORA-", "Microsoft OLE DB"}
 
 	for _, u := range errURLs {
+		if ctx.Err() != nil {
+			break
+		}
 		_, errBody, err := doGet(ctx, client, u)
 		if err != nil {
 			continue
@@ -540,11 +562,16 @@ func scanInfoDisclosure(ctx context.Context, baseURL string, nextID func() strin
 
 	// Check main page for HTML comments with sensitive info
 	commentMarkers := []string{"TODO", "FIXME", "HACK", "password", "secret", "api_key", "token", "internal"}
-	_ = body
+	lowerBody := strings.ToLower(body)
 	for _, marker := range commentMarkers {
-		idx := strings.Index(strings.ToLower(body), "<!--")
-		for idx >= 0 {
-			end := strings.Index(body[idx:], "-->")
+		searchFrom := 0
+		for searchFrom < len(lowerBody) {
+			idx := strings.Index(lowerBody[searchFrom:], "<!--")
+			if idx < 0 {
+				break
+			}
+			idx += searchFrom
+			end := strings.Index(lowerBody[idx:], "-->")
 			if end < 0 {
 				break
 			}
@@ -560,10 +587,7 @@ func scanInfoDisclosure(ctx context.Context, baseURL string, nextID func() strin
 				})
 				break
 			}
-			idx = strings.Index(body[idx+end+3:], "<!--")
-			if idx >= 0 {
-				idx += end + 3
-			}
+			searchFrom = idx + end + 3
 		}
 	}
 
@@ -865,10 +889,14 @@ func scanSubdomains(ctx context.Context, target string, nextID func() string) []
 		"login", "auth", "sso", "oauth", "id", "accounts",
 	}
 
+	resolver := &net.Resolver{}
 	foundSubs := []string{}
 	for _, sub := range subs {
+		if ctx.Err() != nil {
+			break
+		}
 		fqdn := sub + "." + domain
-		addrs, err := net.LookupHost(fqdn)
+		addrs, err := resolver.LookupHost(ctx, fqdn)
 		if err != nil || len(addrs) == 0 {
 			continue
 		}
@@ -1048,9 +1076,13 @@ func scanBannerGrab(ctx context.Context, target string, nextID func() string) []
 		"PostgreSQL 9.": {"medium", "PostgreSQL 9.x is end-of-life."},
 	}
 
+	dialer := &net.Dialer{Timeout: 2 * time.Second}
 	for _, p := range ports {
+		if ctx.Err() != nil {
+			break
+		}
 		addr := fmt.Sprintf("%s:%d", target, p.port)
-		conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			continue
 		}

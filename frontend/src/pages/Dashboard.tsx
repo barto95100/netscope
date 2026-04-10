@@ -32,7 +32,7 @@ export function Dashboard() {
   }, [refreshStats, refreshPanels])
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1
@@ -98,13 +98,13 @@ export function Dashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 min-h-0 flex-1">
             <div
-              className="rounded-xl overflow-hidden"
+              className="rounded-xl flex flex-col min-h-0"
               style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
             >
               <div
-                className="px-4 py-3 flex items-center justify-between"
+                className="px-4 py-3 flex items-center justify-between shrink-0"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
                 <h2
@@ -122,16 +122,16 @@ export function Dashboard() {
                   No recent scans
                 </div>
               ) : (
-                <div>{scans.map((scan) => <ScanRow key={scan.id} scan={scan} />)}</div>
+                <div className="overflow-y-auto min-h-0 flex-1">{scans.map((scan) => <ScanRow key={scan.id} scan={scan} />)}</div>
               )}
             </div>
 
             <div
-              className="rounded-xl overflow-hidden"
+              className="rounded-xl flex flex-col min-h-0"
               style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
             >
               <div
-                className="px-4 py-3 flex items-center justify-between"
+                className="px-4 py-3 flex items-center justify-between shrink-0"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
                 <h2
@@ -149,7 +149,7 @@ export function Dashboard() {
                   No active alerts
                 </div>
               ) : (
-                <div>{alerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)}</div>
+                <div className="overflow-y-auto min-h-0 flex-1">{alerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)}</div>
               )}
             </div>
           </div>

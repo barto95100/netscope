@@ -288,9 +288,9 @@ export function VulnScanner() {
                   color: done ? '#10b981' : isRunning ? '#ef4444' : 'var(--color-text-tertiary)',
                   fontFamily: 'var(--font-family-mono)',
                 }}>
-                  {done ? '\u2713' : isRunning ? (
-                    <span className="animate-spin inline-block">\u27F3</span>
-                  ) : '\u25CB'}
+                  {done ? '✓' : isRunning ? (
+                    <span className="inline-block w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: '#ef4444', borderTopColor: 'transparent' }} />
+                  ) : '○'}
                   <span className="truncate">{name}</span>
                   {done && done.findings > 0 && (
                     <span className="ml-auto shrink-0 px-1.5 rounded" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
