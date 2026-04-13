@@ -9,6 +9,7 @@ type Config struct {
 	DatabaseURL string `env:"DATABASE_URL" envDefault:"postgres://netscope:netscope@localhost:5432/netscope?sslmode=disable"`
 	NatsURL     string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
 	StaticDir   string `env:"STATIC_DIR" envDefault:""`
+	ReposDir    string `env:"REPOS_DIR" envDefault:"data/repos"`
 }
 
 func Load() (*Config, error) {
