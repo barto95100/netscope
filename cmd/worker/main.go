@@ -7,10 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"time"
+
 	"github.com/barto/netscope/internal/config"
 	"github.com/barto/netscope/internal/database"
 	"github.com/barto/netscope/internal/monitor"
 	"github.com/barto/netscope/internal/queue"
+	"github.com/barto/netscope/internal/secrepos"
 	"github.com/barto/netscope/internal/worker"
 )
 
@@ -39,10 +42,20 @@ func main() {
 	defer q.Close()
 	log.Println("worker: connected to NATS")
 
+	// Initialize security repos
+	repoMgr := secrepos.NewManager(cfg.ReposDir)
+	go func() {
+		if err := repoMgr.Init(ctx); err != nil {
+			log.Printf("worker: security repos init failed: %v", err)
+		}
+		repoMgr.StartAutoUpdate(ctx, 24*time.Hour)
+	}()
+
 	// Create dispatcher
 	dispatcher := &worker.Dispatcher{
-		DB:    db,
-		Queue: q,
+		DB:      db,
+		Queue:   q,
+		RepoMgr: repoMgr,
 	}
 
 	// Subscribe to scan jobs

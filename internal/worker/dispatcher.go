@@ -10,13 +10,15 @@ import (
 	"github.com/barto/netscope/internal/database"
 	"github.com/barto/netscope/internal/models"
 	"github.com/barto/netscope/internal/queue"
+	"github.com/barto/netscope/internal/secrepos"
 	"github.com/barto/netscope/internal/tools"
 )
 
 // Dispatcher receives scan jobs and dispatches them to the appropriate tool.
 type Dispatcher struct {
-	DB    *database.DB
-	Queue queue.JobQueue
+	DB      *database.DB
+	Queue   queue.JobQueue
+	RepoMgr *secrepos.Manager
 }
 
 // jobOptions holds the common options that can appear in a ScanJob.Options payload.
