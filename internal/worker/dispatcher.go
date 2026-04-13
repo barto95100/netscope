@@ -159,12 +159,19 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		scanCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
+		scanOpts := tools.VulnScanOptions{}
+		if d.RepoMgr != nil && d.RepoMgr.IsReady() {
+			scanOpts.NucleiDir = d.RepoMgr.NucleiDir()
+			scanOpts.PayloadsDir = d.RepoMgr.PayloadsDir()
+			scanOpts.SecListsDir = d.RepoMgr.SecListsDir()
+		}
+
 		onProgress := func(p tools.ModuleProgress) {
 			data, _ := json.Marshal(p)
 			d.publishProgress(ctx, job.ScanID, "progress", data)
 		}
 
-		res, err := tools.VulnScan(scanCtx, target, onProgress)
+		res, err := tools.VulnScan(scanCtx, target, scanOpts, onProgress)
 		if err != nil {
 			return nil, err
 		}
@@ -204,6 +211,11 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 
 		popts := tools.PentestOptions{
 			Findings: pentestOpts.Findings,
+		}
+		if d.RepoMgr != nil && d.RepoMgr.IsReady() {
+			popts.NucleiDir = d.RepoMgr.NucleiDir()
+			popts.PayloadsDir = d.RepoMgr.PayloadsDir()
+			popts.SecListsDir = d.RepoMgr.SecListsDir()
 		}
 
 		if pentestOpts.UsernameWordlistID != "" {

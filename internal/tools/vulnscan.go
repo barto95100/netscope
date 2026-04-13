@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/barto/netscope/internal/secrepos"
 )
 
 // VulnFinding represents a single vulnerability finding.
@@ -64,9 +66,16 @@ type ModuleProgress struct {
 	Duration float64 `json:"duration_sec"`
 }
 
+// VulnScanOptions configures the vulnerability scan.
+type VulnScanOptions struct {
+	NucleiDir   string
+	PayloadsDir string
+	SecListsDir string
+}
+
 // VulnScan runs a comprehensive vulnerability scan.
 // onProgress is called after each module completes (may be nil).
-func VulnScan(ctx context.Context, target string, onProgress func(ModuleProgress)) (*VulnScanResult, error) {
+func VulnScan(ctx context.Context, target string, opts VulnScanOptions, onProgress func(ModuleProgress)) (*VulnScanResult, error) {
 	if err := ValidateTarget(target); err != nil {
 		return nil, err
 	}
@@ -108,6 +117,12 @@ func VulnScan(ctx context.Context, target string, onProgress func(ModuleProgress
 		{"XSS Probing", func() []VulnFinding { return scanXSS(ctx, baseURL, nextID) }},
 		{"SSRF Detection", func() []VulnFinding { return scanSSRF(ctx, baseURL, nextID) }},
 		{"API Discovery", func() []VulnFinding { return scanAPIDiscovery(ctx, baseURL, nextID) }},
+	}
+
+	if opts.NucleiDir != "" {
+		modules = append(modules, module{"CVE Detection (Nuclei)", func() []VulnFinding {
+			return scanWithNuclei(ctx, baseURL, cleanTarget, opts.NucleiDir, nextID)
+		}})
 	}
 
 	for i, m := range modules {
@@ -1412,6 +1427,50 @@ func scanAPIDiscovery(ctx context.Context, baseURL string, nextID func() string)
 			f.ExploitType = "api_exploit"
 		}
 		findings = append(findings, f)
+	}
+
+	return findings
+}
+
+func scanWithNuclei(ctx context.Context, baseURL, target, nucleiDir string, nextID func() string) []VulnFinding {
+	var findings []VulnFinding
+
+	products := []string{"apache", "nginx", "php", "wordpress", "tomcat", "jenkins", "iis", "joomla", "drupal"}
+
+	for _, product := range products {
+		if ctx.Err() != nil {
+			break
+		}
+		templates, err := secrepos.FindTemplatesByProduct(nucleiDir, product)
+		if err != nil || len(templates) == 0 {
+			continue
+		}
+
+		limit := 10
+		if len(templates) < limit {
+			limit = len(templates)
+		}
+
+		for _, tmpl := range templates[:limit] {
+			if ctx.Err() != nil {
+				break
+			}
+			result, err := secrepos.ExecuteTemplate(ctx, tmpl, baseURL)
+			if err != nil || !result.Matched {
+				continue
+			}
+			findings = append(findings, VulnFinding{
+				ID:               nextID(),
+				Severity:         result.Severity,
+				Category:         "nuclei",
+				Title:            fmt.Sprintf("[%s] %s", result.TemplateID, result.Name),
+				Description:      result.Description,
+				URL:              result.MatchedURL,
+				Evidence:         result.Evidence,
+				ExploitAvailable: true,
+				ExploitType:      "nuclei_template",
+			})
+		}
 	}
 
 	return findings
