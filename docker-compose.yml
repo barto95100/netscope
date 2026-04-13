@@ -47,6 +47,10 @@ services:
     environment:
       DATABASE_URL: postgres://netscope:netscope@postgres:5432/netscope?sslmode=disable
       NATS_URL: nats://nats:4222
+      REPOS_DIR: /data/repos
+    volumes:
+      - reposdata:/data/repos
 
 volumes:
   pgdata:
+  reposdata:
