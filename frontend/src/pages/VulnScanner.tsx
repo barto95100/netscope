@@ -335,48 +335,49 @@ export function VulnScanner() {
               SCANNING {target.toUpperCase()}
             </span>
             <span className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-              {moduleProgress.length}/15 modules
+              {moduleProgress.length}{moduleProgress.length > 0 ? `/${moduleProgress[0].total}` : ''} modules
             </span>
           </div>
 
           {/* Progress bar */}
           <div className="w-full h-1.5 rounded-full mb-4" style={{ background: 'var(--color-bg-surface)' }}>
             <div className="h-full rounded-full transition-all duration-500" style={{
-              width: `${(moduleProgress.length / 15) * 100}%`,
+              width: `${moduleProgress.length > 0 ? (moduleProgress.length / moduleProgress[0].total) * 100 : 0}%`,
               background: 'linear-gradient(90deg, #ef4444, #f97316)',
             }} />
           </div>
 
           {/* Module list */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {[
-              'Sensitive Files', 'CORS Misconfiguration', 'Cookie Security',
-              'Information Disclosure', 'DNS Security', 'HTTP Methods',
-              'Directory Listing', 'Open Redirect', 'Subdomain Enumeration',
-              'WAF Detection', 'Banner Grabbing', 'SQLi Probing',
-              'XSS Probing', 'SSRF Detection', 'API Discovery',
-            ].map((name, i) => {
-              const done = moduleProgress.find(p => p.module === name)
-              const isRunning = !done && moduleProgress.length === i
-              return (
-                <div key={name} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{
-                  background: done ? 'rgba(16,185,129,0.06)' : isRunning ? 'rgba(239,68,68,0.06)' : 'transparent',
-                  border: `1px solid ${done ? 'rgba(16,185,129,0.2)' : isRunning ? 'rgba(239,68,68,0.2)' : 'var(--color-border)'}`,
-                  color: done ? '#10b981' : isRunning ? '#ef4444' : 'var(--color-text-tertiary)',
-                  fontFamily: 'var(--font-family-mono)',
-                }}>
-                  {done ? '✓' : isRunning ? (
-                    <span className="inline-block w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: '#ef4444', borderTopColor: 'transparent' }} />
-                  ) : '○'}
-                  <span className="truncate">{name}</span>
-                  {done && done.findings > 0 && (
-                    <span className="ml-auto shrink-0 px-1.5 rounded" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
-                      {done.findings}
-                    </span>
-                  )}
-                </div>
-              )
-            })}
+            {/* Completed modules */}
+            {moduleProgress.map((p) => (
+              <div key={p.module} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{
+                background: 'rgba(16,185,129,0.06)',
+                border: '1px solid rgba(16,185,129,0.2)',
+                color: '#10b981',
+                fontFamily: 'var(--font-family-mono)',
+              }}>
+                ✓
+                <span className="truncate">{p.module}</span>
+                {p.findings > 0 && (
+                  <span className="ml-auto shrink-0 px-1.5 rounded" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+                    {p.findings}
+                  </span>
+                )}
+              </div>
+            ))}
+            {/* Currently running module (spinner) */}
+            {moduleProgress.length > 0 && moduleProgress.length < moduleProgress[0].total && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{
+                background: 'rgba(239,68,68,0.06)',
+                border: '1px solid rgba(239,68,68,0.2)',
+                color: '#ef4444',
+                fontFamily: 'var(--font-family-mono)',
+              }}>
+                <span className="inline-block w-3 h-3 border-2 rounded-full animate-spin" style={{ borderColor: '#ef4444', borderTopColor: 'transparent' }} />
+                <span className="truncate">Running...</span>
+              </div>
+            )}
           </div>
         </div>
       )}
