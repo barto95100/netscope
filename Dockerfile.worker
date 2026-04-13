@@ -9,7 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /netscope-worker ./cmd/worker
 
 # Stage 2: Runtime
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates git
+RUN apk add --no-cache ca-certificates git traceroute iputils
 WORKDIR /app
 COPY --from=build /netscope-worker .
 

@@ -44,6 +44,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+    cap_add:
+      - NET_RAW
     environment:
       DATABASE_URL: postgres://netscope:netscope@postgres:5432/netscope?sslmode=disable
       NATS_URL: nats://nats:4222
