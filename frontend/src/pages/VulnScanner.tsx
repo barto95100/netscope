@@ -155,6 +155,9 @@ export function VulnScanner() {
     setExpandedFindings({})
     setActiveCategory(null)
     setModuleProgress([])
+    setPentestScan(null)
+    setPentestLoading(false)
+    setPentestProgress([])
     try {
       const s = await api.scans.create({ type: 'vulnscan', target, options: { timeout_sec: timeoutSec } })
       setScan(s)
