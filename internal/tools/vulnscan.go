@@ -985,46 +985,86 @@ func scanWAF(ctx context.Context, baseURL string, target string, nextID func() s
 	wafDetected := ""
 	wafEvidence := ""
 
-	// Check headers
-	for _, h := range []string{"Server", "X-CDN", "X-Cache", "CF-RAY", "X-Sucuri-ID", "X-Akamai-Transformed", "X-Azure-Ref"} {
-		val := resp.Header.Get(h)
+	// Check all response headers against known WAF/proxy/CDN signatures
+	headerSignatures := []struct {
+		header string
+		contains string
+		name   string
+	}{
+		{"CF-RAY", "", "Cloudflare"},
+		{"CF-Cache-Status", "", "Cloudflare"},
+		{"Server", "cloudflare", "Cloudflare"},
+		{"Server", "akamai", "Akamai"},
+		{"X-Akamai-Transformed", "", "Akamai"},
+		{"X-Sucuri-ID", "", "Sucuri"},
+		{"X-Sucuri-Cache", "", "Sucuri"},
+		{"Server", "sucuri", "Sucuri"},
+		{"X-Azure-Ref", "", "Azure Front Door"},
+		{"Server", "incapsula", "Imperva/Incapsula"},
+		{"X-Iinfo", "", "Imperva/Incapsula"},
+		{"X-CDN", "imperva", "Imperva/Incapsula"},
+		{"Server", "barracuda", "Barracuda WAF"},
+		{"Server", "fortiweb", "FortiWeb WAF"},
+		{"Server", "bigip", "F5 BIG-IP"},
+		{"X-Proxy-By", "", "Reverse Proxy"},
+		{"X-Powered-By-Plesk", "", "Plesk"},
+		{"Server", "awselb", "AWS ELB"},
+		{"X-Amz-Cf-Id", "", "AWS CloudFront"},
+		{"X-CDN", "", "CDN"},
+		{"Via", "varnish", "Varnish Cache"},
+		{"Via", "cloudfront", "AWS CloudFront"},
+		{"X-Cache", "hit", "CDN/Cache"},
+		{"Server", "nginx-wallarm", "Wallarm WAF"},
+		{"Server", "openresty", "OpenResty/Lua WAF"},
+		{"X-Powered-By", "zoraxy", "Zoraxy Proxy"},
+		{"X-Proxy-By", "zoraxy", "Zoraxy Proxy"},
+		{"Server", "traefik", "Traefik Proxy"},
+		{"Server", "caddy", "Caddy Server"},
+		{"Server", "haproxy", "HAProxy"},
+	}
+
+	for _, sig := range headerSignatures {
+		val := resp.Header.Get(sig.header)
 		if val == "" {
 			continue
 		}
-		switch {
-		case h == "CF-RAY":
-			wafDetected = "Cloudflare"
-			wafEvidence = "CF-RAY: " + val
-		case strings.Contains(strings.ToLower(val), "cloudflare"):
-			wafDetected = "Cloudflare"
-			wafEvidence = h + ": " + val
-		case strings.Contains(strings.ToLower(val), "akamai"):
-			wafDetected = "Akamai"
-			wafEvidence = h + ": " + val
-		case strings.Contains(strings.ToLower(val), "sucuri"):
-			wafDetected = "Sucuri"
-			wafEvidence = h + ": " + val
-		case strings.Contains(strings.ToLower(val), "incapsula") || strings.Contains(strings.ToLower(val), "imperva"):
-			wafDetected = "Imperva/Incapsula"
-			wafEvidence = h + ": " + val
-		case h == "X-Azure-Ref":
-			wafDetected = "Azure Front Door"
-			wafEvidence = h + ": " + val
+		if sig.contains == "" || strings.Contains(strings.ToLower(val), sig.contains) {
+			wafDetected = sig.name
+			wafEvidence = sig.header + ": " + val
+			break
 		}
 	}
 
 	// Check body for WAF block pages
 	if wafDetected == "" {
 		wafSignatures := map[string]string{
-			"cloudflare":           "Cloudflare",
-			"attention required":   "Cloudflare",
-			"sucuri":               "Sucuri",
-			"access denied":        "Generic WAF",
-			"mod_security":         "ModSecurity",
-			"modsecurity":          "ModSecurity",
-			"web application firewall": "Generic WAF",
-			"blocked by":           "Generic WAF",
-			"request blocked":      "Generic WAF",
+			"cloudflare":                "Cloudflare",
+			"attention required":        "Cloudflare",
+			"sucuri":                    "Sucuri",
+			"access denied":             "Generic WAF",
+			"mod_security":              "ModSecurity",
+			"modsecurity":               "ModSecurity",
+			"web application firewall":  "Generic WAF",
+			"blocked by":                "Generic WAF",
+			"request blocked":           "Generic WAF",
+			"fortiweb":                  "FortiWeb WAF",
+			"fortigate":                 "FortiGate",
+			"fortinet":                  "Fortinet WAF",
+			"f5 big-ip":                 "F5 BIG-IP",
+			"barracuda":                 "Barracuda WAF",
+			"wallarm":                   "Wallarm WAF",
+			"imperva":                   "Imperva/Incapsula",
+			"incapsula":                 "Imperva/Incapsula",
+			"wordfence":                 "Wordfence (WordPress)",
+			"comodo waf":                "Comodo WAF",
+			"deny_reason":               "Generic WAF",
+			"naxsi":                     "NAXSI WAF",
+			"nemesida":                  "Nemesida WAF",
+			"sqreen":                    "Sqreen WAF",
+			"reblaze":                   "Reblaze WAF",
+			"akamai ghost":              "Akamai",
+			"ddos protection by":        "DDoS Protection",
+			"shield by":                 "Generic Shield",
 		}
 		bodyLower := strings.ToLower(body)
 		for sig, name := range wafSignatures {
@@ -1032,6 +1072,18 @@ func scanWAF(ctx context.Context, baseURL string, target string, nextID func() s
 				wafDetected = name
 				wafEvidence = fmt.Sprintf("Body contains '%s'", sig)
 				break
+			}
+		}
+	}
+
+	// Behavioral detection: compare attack request vs normal request
+	if wafDetected == "" {
+		normalResp, _, normalErr := doGet(ctx, client, baseURL)
+		if normalErr == nil && normalResp != nil {
+			// If normal request returns 200 but attack returns 403/406/429, it's a WAF
+			if normalResp.StatusCode == 200 && (resp.StatusCode == 403 || resp.StatusCode == 406 || resp.StatusCode == 429 || resp.StatusCode == 503) {
+				wafDetected = "Unknown WAF (behavioral)"
+				wafEvidence = fmt.Sprintf("Normal request: HTTP %d, attack request: HTTP %d — traffic is being filtered", normalResp.StatusCode, resp.StatusCode)
 			}
 		}
 	}
