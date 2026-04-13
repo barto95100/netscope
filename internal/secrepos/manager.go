@@ -43,7 +43,7 @@ func (m *Manager) Init(ctx context.Context) error {
 		repoPath := filepath.Join(m.baseDir, repo.Dir)
 		if _, err := os.Stat(filepath.Join(repoPath, ".git")); err != nil {
 			log.Printf("secrepos: cloning %s ...", repo.Name)
-			cmd := exec.CommandContext(ctx, "git", "clone", repo.URL, repoPath)
+			cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", repo.URL, repoPath)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
@@ -85,9 +85,16 @@ func (m *Manager) UpdateAll(ctx context.Context) {
 }
 
 func (m *Manager) pull(ctx context.Context, repoPath, name string) {
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "pull", "--ff-only")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("secrepos: failed to pull %s: %v (%s)", name, err, string(out))
+	// Fetch latest (works with both shallow and full clones)
+	fetch := exec.CommandContext(ctx, "git", "-C", repoPath, "fetch", "--depth", "1")
+	if out, err := fetch.CombinedOutput(); err != nil {
+		log.Printf("secrepos: failed to fetch %s: %v (%s)", name, err, string(out))
+		return
+	}
+	// Reset to latest
+	reset := exec.CommandContext(ctx, "git", "-C", repoPath, "reset", "--hard", "origin/HEAD")
+	if out, err := reset.CombinedOutput(); err != nil {
+		log.Printf("secrepos: failed to reset %s: %v (%s)", name, err, string(out))
 	} else {
 		log.Printf("secrepos: updated %s", name)
 	}
