@@ -10,6 +10,7 @@ type Config struct {
 	NatsURL     string `env:"NATS_URL" envDefault:"nats://localhost:4222"`
 	StaticDir   string `env:"STATIC_DIR" envDefault:""`
 	ReposDir    string `env:"REPOS_DIR" envDefault:"data/repos"`
+	OUIDir      string `env:"OUI_DIR" envDefault:"data/oui"`
 }
 
 func Load() (*Config, error) {

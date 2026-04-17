@@ -50,9 +50,12 @@ services:
       DATABASE_URL: postgres://netscope:netscope@postgres:5432/netscope?sslmode=disable
       NATS_URL: nats://nats:4222
       REPOS_DIR: /data/repos
+      OUI_DIR: /data/oui
     volumes:
       - reposdata:/data/repos
+      - ouidata:/data/oui
 
 volumes:
   pgdata:
   reposdata:
+  ouidata:
