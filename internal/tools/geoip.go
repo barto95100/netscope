@@ -83,7 +83,13 @@ func GeolocateIPs(ctx context.Context, ips []string) (map[string]*GeoLocation, e
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			return result, fmt.Errorf("geolocate request: %w", err)
+			// Return partial results instead of failing completely
+			break
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			resp.Body.Close()
+			break
 		}
 
 		var responses []ipAPIResponse
