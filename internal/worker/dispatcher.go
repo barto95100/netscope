@@ -19,6 +19,7 @@ type Dispatcher struct {
 	DB      *database.DB
 	Queue   queue.JobQueue
 	RepoMgr *secrepos.Manager
+	OUIDir  string
 }
 
 // jobOptions holds the common options that can appear in a ScanJob.Options payload.
@@ -243,6 +244,13 @@ func (d *Dispatcher) execute(ctx context.Context, job queue.ScanJob) (*ExecutorR
 		}
 
 		res, err := tools.Pentest(scanCtx, target, popts, onProgress)
+		if err != nil {
+			return nil, err
+		}
+		return marshalResult(res)
+
+	case "maclookup":
+		res, err := tools.MacLookup(ctx, target, d.OUIDir)
 		if err != nil {
 			return nil, err
 		}

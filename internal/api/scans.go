@@ -30,9 +30,12 @@ func (s *Server) CreateScan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := tools.ValidateTarget(req.Target); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// MAC lookup validates its own target format (MAC address, not IP/domain)
+	if req.Type != "maclookup" {
+		if err := tools.ValidateTarget(req.Target); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	scan, err := models.CreateScan(r.Context(), s.DB, req.Type, req.Target, req.Options)

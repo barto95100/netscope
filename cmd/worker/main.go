@@ -56,6 +56,7 @@ func main() {
 		DB:      db,
 		Queue:   q,
 		RepoMgr: repoMgr,
+		OUIDir:  cfg.OUIDir,
 	}
 
 	// Subscribe to scan jobs

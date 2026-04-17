@@ -24,6 +24,7 @@ var validScanTypes = map[string]bool{
 	"pentest":     true,
 	"ssl":         true,
 	"headers":     true,
+	"maclookup":   true,
 }
 
 // StripURLScheme removes http:// or https:// prefix and any trailing path from a target.
