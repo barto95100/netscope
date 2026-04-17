@@ -142,11 +142,26 @@ export function Sidebar() {
       <div className="px-5 py-4 space-y-3" style={{ borderTop: '1px solid var(--color-border)' }}>
         <button
           onClick={togglePrivacy}
-          className="flex items-center gap-2 w-full text-xs px-2 py-1.5 rounded-md transition-colors"
+          className="flex items-center gap-2 w-full text-xs px-2 py-1.5 rounded-md transition-all hover:scale-[1.02]"
           style={{
             color: privacyMode ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
             background: privacyMode ? 'rgba(14, 165, 233, 0.08)' : 'transparent',
+            border: `1px solid ${privacyMode ? 'rgba(14, 165, 233, 0.3)' : 'transparent'}`,
             fontFamily: 'var(--font-family-mono)',
+          }}
+          onMouseEnter={(e) => {
+            if (!privacyMode) {
+              e.currentTarget.style.color = 'var(--color-text-primary)'
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+              e.currentTarget.style.borderColor = 'var(--color-border)'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!privacyMode) {
+              e.currentTarget.style.color = 'var(--color-text-tertiary)'
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.borderColor = 'transparent'
+            }
           }}
         >
           <span style={{ fontSize: '14px' }}>{privacyMode ? '◉' : '○'}</span>
