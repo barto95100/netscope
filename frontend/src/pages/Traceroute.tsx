@@ -43,6 +43,7 @@ export function Traceroute() {
   const [error, setError] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const stopRef = useRef(false)
+  const scanIdRef = useRef<string | null>(null)
 
   const cleanup = useCallback(() => {
     stopRef.current = true
@@ -50,6 +51,11 @@ export function Traceroute() {
       try { wsRef.current.send('stop') } catch {}
       wsRef.current.close()
       wsRef.current = null
+    }
+    // Cancel running traceroute scan on the server
+    if (scanIdRef.current) {
+      api.scans.cancel(scanIdRef.current).catch(() => {})
+      scanIdRef.current = null
     }
     setRunning(false)
   }, [])
@@ -84,7 +90,9 @@ export function Traceroute() {
 
     try {
       const scan = await api.scans.create({ type: 'traceroute', target: target.trim(), options: { max_hops: parseInt(maxHops, 10) } })
+      scanIdRef.current = scan.id
       const result = await pollScan(scan.id)
+      scanIdRef.current = null
       if (result.status === 'failed') {
         setError(result.error || 'Traceroute failed')
       } else {

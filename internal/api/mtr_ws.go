@@ -83,7 +83,7 @@ func (s *Server) HandleMtrWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("mtr ws: using mtr at %s", mtrPath)
 
-	cmd := exec.CommandContext(ctx, mtrPath, "--raw", "--no-dns", target)
+	cmd := exec.CommandContext(ctx, mtrPath, "--raw", "--no-dns", "--report-cycles", "100", target)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Printf("mtr ws: pipe error: %v", err)
