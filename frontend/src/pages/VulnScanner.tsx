@@ -462,12 +462,14 @@ export function VulnScanner() {
           {sortedCategories.length > 1 && (
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => setActiveCategory(null)}
-                className="text-[10px] px-3 py-1.5 rounded-lg font-medium transition-all"
+                className="text-[10px] px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-[1.03]"
                 style={{
                   background: !activeCategory ? 'rgba(14,165,233,0.15)' : 'var(--color-bg-card)',
                   border: `1px solid ${!activeCategory ? 'rgba(14,165,233,0.3)' : 'var(--color-border)'}`,
                   color: !activeCategory ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
-                }}>
+                }}
+                onMouseEnter={e => { if (activeCategory) { e.currentTarget.style.borderColor = 'var(--color-border-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'var(--color-bg-card-hover)' } }}
+                onMouseLeave={e => { if (activeCategory) { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.background = 'var(--color-bg-card)' } }}>
                 All ({result.findings.length})
               </button>
               {sortedCategories.map(cat => {
@@ -479,12 +481,14 @@ export function VulnScanner() {
                 const maxSevName = Object.entries(sevOrder).find(([, v]) => v === maxSev)?.[0] || 'info'
                 return (
                   <button key={cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-                    className="text-[10px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5"
+                    className="text-[10px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 hover:scale-[1.03]"
                     style={{
                       background: activeCategory === cat ? sevBg[maxSevName] : 'var(--color-bg-card)',
                       border: `1px solid ${activeCategory === cat ? sevColor[maxSevName] + '40' : 'var(--color-border)'}`,
                       color: activeCategory === cat ? sevColor[maxSevName] : 'var(--color-text-tertiary)',
-                    }}>
+                    }}
+                    onMouseEnter={e => { if (activeCategory !== cat) { e.currentTarget.style.borderColor = 'var(--color-border-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'var(--color-bg-card-hover)' } }}
+                    onMouseLeave={e => { if (activeCategory !== cat) { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.background = 'var(--color-bg-card)' } }}>
                     <span>{catIcon[cat] || '•'}</span>
                     <span>{catLabel[cat] || cat}</span>
                     <span className="font-bold">({catFindings.length})</span>

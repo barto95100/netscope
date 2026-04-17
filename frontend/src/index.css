@@ -51,3 +51,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-tertiary);
 }
+
+/* Interactive elements: cursor + hover feedback */
+button, [role="button"], a[href] {
+  cursor: pointer;
+}
+
+button:not(:disabled):hover {
+  filter: brightness(1.2);
+}

@@ -269,12 +269,14 @@ export function NetPathPage() {
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
           {paths.map(p => (
             <button key={p.id} onClick={() => { setSelected(p.id); setSelectedTraceIdx(0); setCompareIdx(null) }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 hover:scale-[1.02]"
               style={{
                 background: selected === p.id ? 'rgba(14,165,233,0.1)' : 'var(--color-bg-card)',
                 border: `1px solid ${selected === p.id ? 'rgba(14,165,233,0.3)' : 'var(--color-border)'}`,
                 color: selected === p.id ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-              }}>
+              }}
+              onMouseEnter={e => { if (selected !== p.id) { e.currentTarget.style.borderColor = 'var(--color-border-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'var(--color-bg-card-hover)' } }}
+              onMouseLeave={e => { if (selected !== p.id) { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.color = 'var(--color-text-secondary)'; e.currentTarget.style.background = 'var(--color-bg-card)' } }}>
               <span className="w-2 h-2 rounded-full" style={{ background: p.enabled ? 'var(--color-green)' : 'var(--color-text-tertiary)' }} />
               {p.name}
               <span style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>{maskIp(p.target)}</span>
@@ -504,7 +506,9 @@ export function NetPathPage() {
                     style={{
                       borderBottom: '1px solid var(--color-border)',
                       background: selectedTraceIdx === i ? 'rgba(14,165,233,0.05)' : compareIdx === i ? 'rgba(122,139,168,0.05)' : 'transparent',
-                    }}>
+                    }}
+                    onMouseEnter={e => { if (selectedTraceIdx !== i) e.currentTarget.style.background = 'rgba(14,165,233,0.03)' }}
+                    onMouseLeave={e => { if (selectedTraceIdx !== i && compareIdx !== i) e.currentTarget.style.background = 'transparent' }}>
                     <span className="w-2 h-2 rounded-full shrink-0" style={{
                       background: t.route_changed ? 'var(--color-yellow)' : 'var(--color-green)',
                       boxShadow: t.route_changed ? '0 0 6px var(--color-yellow)' : 'none',
