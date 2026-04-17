@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, type Monitor } from '../api/client'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface CertCheckResult {
   grade?: string
@@ -17,6 +18,7 @@ interface CertCheckResult {
 }
 
 export function Certificates() {
+  const { maskIp } = usePrivacy()
   const [monitors, setMonitors] = useState<(Monitor & { certResult?: CertCheckResult })[]>([])
   const [target, setTarget] = useState('')
   const [adding, setAdding] = useState(false)
@@ -181,7 +183,7 @@ export function Certificates() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }}>
-                        {m.target}
+                        {maskIp(m.target)}
                       </span>
                       {cert?.is_expired && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold"

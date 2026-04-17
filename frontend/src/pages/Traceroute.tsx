@@ -1,6 +1,7 @@
 import { type FormEvent, useState, useRef, useCallback, useEffect } from 'react'
 import { api, type Scan } from '../api/client'
 import { PathMap } from '../components/PathMap'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface TracerouteHop {
   ttl: number
@@ -31,6 +32,7 @@ interface TracerouteResult {
 type Mode = 'traceroute' | 'mtr'
 
 export function Traceroute() {
+  const { maskIp } = usePrivacy()
   const [target, setTarget] = useState('')
   const [maxHops, setMaxHops] = useState('30')
   const [mode, setMode] = useState<Mode>('traceroute')
@@ -261,8 +263,8 @@ export function Traceroute() {
                       {traceHops.map((h, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                           <td className="px-3 py-2" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl}</td>
-                          <td className="px-3 py-2" style={{ color: 'var(--color-text-primary)' }}>{h.timeout ? '*' : (h.host || h.address || '*')}</td>
-                          <td className="px-3 py-2" style={{ color: 'var(--color-accent)' }}>{h.timeout ? '*' : (h.address || '*')}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--color-text-primary)' }}>{h.timeout ? '*' : maskIp(h.host || h.address || '*')}</td>
+                          <td className="px-3 py-2" style={{ color: 'var(--color-accent)' }}>{h.timeout ? '*' : maskIp(h.address || '*')}</td>
                           <td className="px-3 py-2" style={{ color: h.timeout ? 'var(--color-text-tertiary)' : rttColor(h.rtt_ms || 0) }}>
                             {h.timeout ? '*' : `${h.rtt_ms?.toFixed(2) ?? '*'}ms`}
                           </td>
@@ -296,7 +298,7 @@ export function Traceroute() {
                       {mtrHops.map((h) => (
                         <tr key={h.ttl} style={{ borderBottom: '1px solid var(--color-border)' }}>
                           <td className="px-2 py-1.5" style={{ color: 'var(--color-text-tertiary)' }}>{h.ttl + 1}</td>
-                          <td className="px-2 py-1.5 max-w-[120px] truncate" style={{ color: 'var(--color-text-primary)' }}>{h.host}</td>
+                          <td className="px-2 py-1.5 max-w-[120px] truncate" style={{ color: 'var(--color-text-primary)' }}>{maskIp(h.host)}</td>
                           <td className="px-2 py-1.5" style={{ color: lossColor(h.loss_percent) }}>{h.loss_percent.toFixed(1)}%</td>
                           <td className="px-2 py-1.5" style={{ color: 'var(--color-text-secondary)' }}>{h.sent}</td>
                           <td className="px-2 py-1.5" style={{ color: rttColor(h.last_ms) }}>{h.last_ms > 0 ? h.last_ms.toFixed(1) : '-'}</td>

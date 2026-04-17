@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface NavItem {
   label: string
@@ -56,6 +57,7 @@ const navGroups: NavGroup[] = [
 ]
 
 export function Sidebar() {
+  const { privacyMode, togglePrivacy } = usePrivacy()
   return (
     <aside
       className="flex flex-col w-60 min-h-screen shrink-0"
@@ -137,7 +139,19 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <div className="px-5 py-4 space-y-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+        <button
+          onClick={togglePrivacy}
+          className="flex items-center gap-2 w-full text-xs px-2 py-1.5 rounded-md transition-colors"
+          style={{
+            color: privacyMode ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
+            background: privacyMode ? 'rgba(14, 165, 233, 0.08)' : 'transparent',
+            fontFamily: 'var(--font-family-mono)',
+          }}
+        >
+          <span style={{ fontSize: '14px' }}>{privacyMode ? '◉' : '○'}</span>
+          Privacy Mode
+        </button>
         <div className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
           v0.1.0
         </div>

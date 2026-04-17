@@ -1,4 +1,5 @@
 import type { Scan } from '../api/client'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface ScanRowProps {
   scan: Scan
@@ -39,6 +40,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export function ScanRow({ scan }: ScanRowProps) {
+  const { maskIp } = usePrivacy()
   const typeColor = scanTypeColors[scan.type] ?? 'var(--color-text-secondary)'
   const statusColor = statusColors[scan.status] ?? 'var(--color-text-secondary)'
 
@@ -65,7 +67,7 @@ export function ScanRow({ scan }: ScanRowProps) {
         className="flex-1 text-sm truncate"
         style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }}
       >
-        {scan.target}
+        {maskIp(scan.target)}
       </span>
 
       {/* Status */}

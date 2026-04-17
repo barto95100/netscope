@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api, type Monitor } from '../api/client'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 export function Monitors() {
+  const { maskIp } = usePrivacy()
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -137,7 +139,7 @@ export function Monitors() {
                   <span className="text-sm font-medium truncate" style={{ color: m.enabled ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>{m.name}</span>
                   {!m.enabled && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-tertiary)' }}>paused</span>}
                 </div>
-                <span className="text-xs truncate block" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>{m.target}</span>
+                <span className="text-xs truncate block" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>{maskIp(m.target)}</span>
               </div>
               {m.last_latency_ms != null && (
                 <span className="text-xs px-2 py-1 rounded" style={{

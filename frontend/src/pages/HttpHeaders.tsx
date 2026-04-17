@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { ToolPage } from '../components/ToolPage'
 import { useScanPoll } from '../hooks/useScanPoll'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface HeaderCheck {
   name: string
@@ -18,6 +19,7 @@ interface HeadersResult {
 }
 
 export function HttpHeaders() {
+  const { maskIp } = usePrivacy()
   const [target, setTarget] = useState('')
   const { scan, polling, submitting, error, submit } = useScanPoll()
 
@@ -63,7 +65,7 @@ export function HttpHeaders() {
                 {result.grade}
               </span>
               <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{result.target}</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{maskIp(result.target)}</p>
                 <p className="text-xs" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>
                   Score: {result.score}/100
                 </p>

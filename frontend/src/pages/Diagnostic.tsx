@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { ToolPage } from '../components/ToolPage'
 import { useScanPoll } from '../hooks/useScanPoll'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface PingResult {
   packets_sent: number
@@ -13,6 +14,7 @@ interface PingResult {
 }
 
 export function Diagnostic() {
+  const { maskIp } = usePrivacy()
   const [target, setTarget] = useState('')
   const [count, setCount] = useState('4')
   const { scan, polling, submitting, error, submit } = useScanPoll()
@@ -98,7 +100,7 @@ export function Diagnostic() {
             <div className="flex items-center gap-3 px-1">
               <span className="w-2 h-2 rounded-full" style={{ background: result.packet_loss === 0 ? 'var(--color-green)' : 'var(--color-red)', boxShadow: result.packet_loss === 0 ? '0 0 6px var(--color-green)' : '0 0 6px var(--color-red)' }} />
               <span className="text-xs" style={{ fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-secondary)' }}>
-                {scan.target} is {result.packet_loss === 0 ? 'reachable' : result.packets_recv > 0 ? 'partially reachable' : 'unreachable'}
+                {maskIp(scan.target)} is {result.packet_loss === 0 ? 'reachable' : result.packets_recv > 0 ? 'partially reachable' : 'unreachable'}
               </span>
             </div>
           </div>

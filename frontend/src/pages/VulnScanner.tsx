@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, type Scan } from '../api/client'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface VulnFinding {
   id: string
@@ -132,6 +133,7 @@ const catIcon: Record<string, string> = {
 }
 
 export function VulnScanner() {
+  const { maskIp } = usePrivacy()
   const [target, setTarget] = useState('')
   const [scan, setScan] = useState<Scan | null>(null)
   const [loading, setLoading] = useState(false)
@@ -407,7 +409,7 @@ export function VulnScanner() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-family-mono)' }}>
-                    {result.target}
+                    {maskIp(result.target)}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: 'var(--color-bg-surface)', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
                     {result.duration_sec.toFixed(1)}s
@@ -674,7 +676,7 @@ export function VulnScanner() {
                 <div className="flex items-center gap-3 mb-4">
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#dc2626' }} />
                   <span className="text-sm font-medium" style={{ color: '#dc2626', fontFamily: 'var(--font-family-mono)' }}>
-                    PENTESTING {result.target.toUpperCase()}
+                    PENTESTING {maskIp(result.target).toUpperCase()}
                   </span>
                   <span className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
                     {pentestProgress.length}/6 modules

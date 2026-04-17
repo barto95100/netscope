@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { api } from '../api/client'
+import { usePrivacy } from '../hooks/usePrivacy'
 
 interface Hop {
   ttl: number
@@ -32,6 +33,7 @@ interface PathMapProps {
 }
 
 export function PathMap({ hops, target, live: _live }: PathMapProps) {
+  const { maskIp } = usePrivacy()
   const mapRef = useRef<HTMLDivElement>(null)
   const leafletMap = useRef<L.Map | null>(null)
   const layersRef = useRef<L.LayerGroup | null>(null)
@@ -293,7 +295,8 @@ export function PathMap({ hops, target, live: _live }: PathMapProps) {
 
       const marker = L.marker(latLng, { icon }).addTo(layers)
 
-      const label = isFirst ? 'Source' : isLast ? `Destination (${target})` : `Hop ${pt.ttl + 1}`
+      const label = isFirst ? 'Source' : isLast ? `Destination (${maskIp(target)})` : `Hop ${pt.ttl + 1}`
+      const maskedIp = maskIp(pt.ip)
       const lossInfo = pt.loss_percent && pt.loss_percent > 0
         ? `<div style="display:flex;justify-content:space-between;margin-top:3px"><span style="color:#ef4444">Packet Loss</span><span style="color:#ef4444;font-weight:600">${pt.loss_percent.toFixed(1)}%</span></div>`
         : ''
@@ -309,8 +312,8 @@ export function PathMap({ hops, target, live: _live }: PathMapProps) {
             <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color}"></div>
             <span style="font-size:12px;font-weight:600;color:${color}">${label}</span>
           </div>
-          <div style="color:#0ea5e9;font-size:12px;margin-bottom:2px">${pt.ip}</div>
-          ${pt.host && pt.host !== pt.ip ? `<div style="color:#7a8ba8">${pt.host}</div>` : ''}
+          <div style="color:#0ea5e9;font-size:12px;margin-bottom:2px">${maskedIp}</div>
+          ${pt.host && pt.host !== pt.ip ? `<div style="color:#7a8ba8">${maskIp(pt.host)}</div>` : ''}
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(14,165,233,0.1)">
             <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#4a5568">Location</span><span style="color:#e8edf5">${pt.city}${pt.city && pt.country ? ', ' : ''}${pt.country}</span></div>
             ${pt.isp ? `<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#4a5568">ISP</span><span style="color:#7a8ba8">${pt.isp}</span></div>` : ''}

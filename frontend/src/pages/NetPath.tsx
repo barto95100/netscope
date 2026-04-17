@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { usePrivacy } from '../hooks/usePrivacy'
 // api client used via fetch directly for netpath endpoints
 
 interface NetPath {
@@ -59,6 +60,7 @@ async function fetchChanges(id: string): Promise<Trace[]> {
 }
 
 export function NetPathPage() {
+  const { maskIp } = usePrivacy()
   const [paths, setPaths] = useState<NetPath[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [traces, setTraces] = useState<Trace[]>([])
@@ -275,7 +277,7 @@ export function NetPathPage() {
               }}>
               <span className="w-2 h-2 rounded-full" style={{ background: p.enabled ? 'var(--color-green)' : 'var(--color-text-tertiary)' }} />
               {p.name}
-              <span style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>{p.target}</span>
+              <span style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>{maskIp(p.target)}</span>
               <button onClick={e => { e.stopPropagation(); handleDelete(p.id) }} className="ml-1 text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>✕</button>
             </button>
           ))}
@@ -439,7 +441,7 @@ export function NetPathPage() {
                             {isFirst && <text x={x} y={mainY - 22} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#10b981" filter="url(#ng)" letterSpacing="2">SRC</text>}
                             {isLast && <text x={x} y={mainY - 22} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#ef4444" filter="url(#ng)" letterSpacing="2">DST</text>}
                             <text x={x} y={mainY + r + 16} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill={color} opacity={active ? 0.8 : 0.3}>
-                              {hop.address || '*'}
+                              {maskIp(hop.address || '*')}
                             </text>
 
                             {/* Tooltip on hover */}
@@ -449,7 +451,7 @@ export function NetPathPage() {
                               <text x={x} y={mainY - 62} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={color} fontWeight="600">
                                 {isFirst ? 'Source' : isLast ? 'Destination' : `Hop ${hop.ttl + 1}`}
                               </text>
-                              <text x={x} y={mainY - 49} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#0ea5e9">{hop.address}</text>
+                              <text x={x} y={mainY - 49} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#0ea5e9">{maskIp(hop.address)}</text>
                               {hop.rtt_ms > 0 && <text x={x} y={mainY - 36} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono',monospace" fill={rttColor(hop.rtt_ms)} fontWeight="bold">{hop.rtt_ms.toFixed(2)} ms</text>}
                               {hop.city && <text x={x} y={mainY - 23} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">{hop.city}{hop.country ? `, ${hop.country}` : ''} {hop.isp ? `· ${hop.isp.slice(0, 20)}` : ''}</text>}
                             </g>
@@ -467,12 +469,12 @@ export function NetPathPage() {
                             <circle cx={x} cy={branchY} r={6} fill="#0a0e16" stroke="#7a8ba8" strokeWidth={1} strokeOpacity={0.3} />
                             <circle cx={x} cy={branchY} r={2} fill="#7a8ba8" fillOpacity={0.3} />
                             <text x={x} y={branchY + 16} textAnchor="middle" fontSize={7} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8" opacity={0.4}>
-                              {hop.address || '???'}
+                              {maskIp(hop.address || '???')}
                             </text>
                             <g className="np-tip">
                               <rect x={x - 80} y={branchY - 50} width={160} height={40} rx={6}
                                 fill="#0b0f18" stroke="#7a8ba840" strokeWidth={1} />
-                              <text x={x} y={branchY - 34} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">Old: {hop.address}</text>
+                              <text x={x} y={branchY - 34} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">Old: {maskIp(hop.address)}</text>
                               {hop.rtt_ms > 0 && <text x={x} y={branchY - 20} textAnchor="middle" fontSize={8} fontFamily="'IBM Plex Mono',monospace" fill="#7a8ba8">{hop.rtt_ms.toFixed(2)} ms</text>}
                             </g>
                           </g>
