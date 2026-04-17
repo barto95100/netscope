@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /netscope-api ./cmd/api
 
 # Stage 3: Runtime
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates curl nmap
+RUN apk add --no-cache ca-certificates curl nmap mtr
 WORKDIR /app
 COPY --from=backend /netscope-api .
 COPY --from=frontend /app/frontend/dist ./frontend/dist
