@@ -153,7 +153,7 @@ export function Sidebar() {
           Privacy Mode
         </button>
         <div className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-          v0.1.0
+          v0.2.0
         </div>
       </div>
     </aside>
