@@ -56,10 +56,11 @@ export function Traceroute() {
     if (scanIdRef.current) {
       api.scans.cancel(scanIdRef.current).catch(() => {})
       scanIdRef.current = null
-      // Clear traceroute results (not MTR — keep MTR data on stop)
-      setTraceHops([])
     }
     setRunning(false)
+    setTraceHops([])
+    setMtrHops([])
+    setMtrSent(0)
   }, [])
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export function Traceroute() {
     wsRef.current = ws
 
     ws.onmessage = (event) => {
+      if (stopRef.current) return
       try {
         const data = JSON.parse(event.data)
         if (data.hops) {
