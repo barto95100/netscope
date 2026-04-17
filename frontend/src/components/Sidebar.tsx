@@ -27,6 +27,7 @@ const navGroups: NavGroup[] = [
       { label: 'DNS Lookup', to: '/dns', icon: '◈' },
       { label: 'Whois', to: '/whois', icon: '◇' },
       { label: 'NetPath', to: '/netpath', icon: '⟿' },
+      { label: 'MAC Lookup', to: '/mac-lookup', icon: '⎔' },
     ],
   },
   {
