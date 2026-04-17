@@ -41,8 +41,10 @@ export function PathMap({ hops, target, live: _live }: PathMapProps) {
   const animFrameRef = useRef<number>(0)
   const [points, setPoints] = useState<GeoPoint[]>([])
   const [loading, setLoading] = useState(false)
+  const geoCache = useRef<Record<string, { lat: number; lon: number; city: string; country: string; isp: string }>>({})
+  const lastIpKey = useRef<string>('')
 
-  // Geolocate IPs
+  // Geolocate IPs — only re-fetch when the set of IPs actually changes
   useEffect(() => {
     const ips = hops
       .filter(h => !h.timeout && h.address && h.address !== '???' && h.address !== '*')
@@ -50,12 +52,15 @@ export function PathMap({ hops, target, live: _live }: PathMapProps) {
 
     if (ips.length === 0) return
 
-    setLoading(true)
-    api.geolocate(ips).then(geo => {
+    const ipKey = ips.sort().join(',')
+    const uncachedIps = ips.filter(ip => !geoCache.current[ip])
+
+    // Build points from cache + hops (always update RTT/loss even without re-fetch)
+    const buildPoints = () => {
       const pts: GeoPoint[] = []
       for (const hop of hops) {
         if (hop.timeout || !hop.address) continue
-        const g = geo[hop.address]
+        const g = geoCache.current[hop.address]
         if (g && g.lat !== 0 && g.lon !== 0) {
           pts.push({
             ip: hop.address, lat: g.lat, lon: g.lon,
@@ -66,8 +71,34 @@ export function PathMap({ hops, target, live: _live }: PathMapProps) {
         }
       }
       setPoints(pts)
+    }
+
+    // If no new IPs to fetch, just rebuild from cache with updated RTT/loss
+    if (uncachedIps.length === 0) {
+      buildPoints()
+      return
+    }
+
+    // Only fetch if the IP set changed
+    if (ipKey === lastIpKey.current && Object.keys(geoCache.current).length > 0) {
+      buildPoints()
+      return
+    }
+    lastIpKey.current = ipKey
+
+    setLoading(true)
+    api.geolocate(uncachedIps).then(geo => {
+      // Merge into cache
+      for (const [ip, g] of Object.entries(geo)) {
+        if (g) geoCache.current[ip] = g
+      }
+      buildPoints()
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => {
+      // On error, still show cached points
+      buildPoints()
+      setLoading(false)
+    })
   }, [hops])
 
   function rttColor(ms?: number) {
