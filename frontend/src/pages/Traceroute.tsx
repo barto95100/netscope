@@ -56,6 +56,8 @@ export function Traceroute() {
     if (scanIdRef.current) {
       api.scans.cancel(scanIdRef.current).catch(() => {})
       scanIdRef.current = null
+      // Clear traceroute results (not MTR — keep MTR data on stop)
+      setTraceHops([])
     }
     setRunning(false)
   }, [])
@@ -93,6 +95,7 @@ export function Traceroute() {
       scanIdRef.current = scan.id
       const result = await pollScan(scan.id)
       scanIdRef.current = null
+      if (stopRef.current) return
       if (result.status === 'failed') {
         setError(result.error || 'Traceroute failed')
       } else {
